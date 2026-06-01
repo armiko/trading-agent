@@ -17,17 +17,21 @@ Semua komponen berjalan **murni lokal** di VM Proxmox Windows untuk meminimalisi
 
 ---
 
-## ⚙️ Spesifikasi Teknis (Hardcoded Rules)
+## ⚙️ Spesifikasi Teknis (Configurable via Setup Wizard)
 
-| Parameter | Nilai |
-|---|---|
-| **Pair Target** | XAUUSD |
-| **Tipe Akun** | Cent Account |
-| **Base Equity** | 2000 USC (~Rp300.000) |
-| **Lot Eksekusi** | 0.01 Cent lot (fixed, no martingale) |
-| **Max Drawdown** | 5% per hari (100 USC → mode HIBERNATE) |
-| **Max Open Position** | 1 |
-| **Max Trades Per Day** | 3 |
+> **Jalankan `python trade.py setup` untuk konfigurasi interaktif.**
+
+| Parameter | Nilai Default | Keterangan |
+|---|---|---|
+| **Pair Target** | XAUUSD | Bisa diganti via setup wizard |
+| **Tipe Akun** | Cent Account | Untuk testing (jangan pakai real) |
+| **Base Equity** | 2000 USC | Dari MT5, bisa di-reset via daily reset |
+| **Lot Eksekusi** | 0.01 Cent lot | Fixed, no martingale |
+| **Max Drawdown** | 5% per hari | Mode HIBERNATE jika tercapai |
+| **Max Open Position** | 1 | Bot hanya 1 posisi aktif |
+| **Max Trades Per Day** | 3 | Reset otomatis setiap midnight |
+
+**Note:** Semua parameter di atas bisa diubah via `python trade.py setup` atau edit `config.yaml`.
 
 ---
 
@@ -295,23 +299,40 @@ ollama pull qwen3:8b   # atau model lain sesuai config
    pip install -r requirements.txt
    ```
 
-2. **Setup Ollama**
+2. **Setup 9Router (Recommended) atau Ollama**
    ```bash
+   # Option A: 9Router (60+ providers, auto-fallback)
+   npm install -g 9router
+   9router
+   
+   # Option B: Ollama (local LLM)
    ollama serve
    ollama pull qwen3:8b
    ```
 
-3. **Cek Koneksi MT5**
+3. **Interactive Setup Wizard**
+   ```bash
+   python trade.py setup
+   ```
+   Anda akan diminta input:
+   - Symbol (XAUUSD, EURUSD, dll)
+   - Capital/Equity
+   - Lot size
+   - Max trades per day
+   - Confidence threshold
+   - AI Provider (9Router/Ollama)
+
+4. **Cek Koneksi MT5**
    ```bash
    python trade.py status
    ```
 
-4. **Mulai Trading (Assisted Mode)**
+5. **Mulai Trading (Assisted Mode)**
    ```bash
    python trade.py start
    ```
 
-5. **Atau Jalankan Headless (Auto Mode)**
+6. **Atau Jalankan Headless (Auto Mode)**
    ```bash
    python trade.py run
    ```
