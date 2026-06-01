@@ -2,7 +2,7 @@
 
 Dokumen ini merangkum arsitektur **Minimum Viable Product (MVP)** untuk AI Trading Agent berbasis terminal. Fokus utama fase ini adalah membangun integrasi Core Engine, manajemen risiko, dan sistem pembelajaran (Learning Memory) melalui Terminal UI (TUI) yang ringan namun interaktif.
 
-> **Stack:** Python · MetaTrader 5 · Ollama (Local LLM) · SQLite · Textual/Rich TUI  
+> **Stack:** Python · MetaTrader 5 · 9Router (60+ AI providers) · SQLite · Textual/Rich TUI  
 > **Server:** VM Proxmox Windows (akses via SSH dari MacBook)
 
 ---
@@ -10,7 +10,7 @@ Dokumen ini merangkum arsitektur **Minimum Viable Product (MVP)** untuk AI Tradi
 ## 🏗️ Arsitektur & Konsep MVP
 
 ```
-CLI / TUI (Textual/Rich)  →  Core Engine (Market, Risk, Flow)  →  Ollama & MT5  →  SQLite
+CLI / TUI (Textual/Rich)  →  Core Engine (Market, Risk, Flow)  →  9Router & MT5  →  SQLite
 ```
 
 Semua komponen berjalan **murni lokal** di VM Proxmox Windows untuk meminimalisir latensi.
@@ -47,7 +47,7 @@ trading-agent/
 ├── core/
 │   ├── market.py         # Tarik data M5 & Multi-Timeframe
 │   ├── indicators.py     # Kalkulasi EMA, RSI, ATR via pandas_ta
-│   ├── ai.py             # Jembatan pengirim prompt ke Ollama
+│   ├── ai.py             # Pengirim prompt ke 9Router AI
 │   ├── risk.py           # Validasi Drawdown & Rules
 │   ├── execution.py      # Trigger mt5.order_send()
 │   ├── learning.py       # Update & baca SQLite trades
@@ -55,8 +55,7 @@ trading-agent/
 │   └── agent.py          # Main orchestration
 │
 ├── providers/            # AI Provider
-│   ├── ollama.py         # Ollama local LLM
-│   └── ninerouter.py     # 9Router (60+ providers, auto-fallback)
+│   └── ninerouter.py     # 9Router (60+ providers, fallback)
 │
 ├── db/
 │   └── sqlite.db         # WAL mode enabled
@@ -120,7 +119,7 @@ db_path: db/sqlite.db
 
 ## 🔄 Alur Sistem (7 Fase)
 
-Sistem berjalan menggunakan **Asynchronous Event Loop** (`asyncio`) agar TUI tidak freeze saat menunggu respons Ollama atau MT5.
+Sistem berjalan menggunakan **Asynchronous Event Loop** (`asyncio`) agar TUI tidak freeze saat menunggu respons 9Router atau MT5.
 
 ### Fase 1 — Booting & Inisialisasi
 1. Jalankan `trade start`, baca `config.yaml`
@@ -140,7 +139,7 @@ Sistem berjalan menggunakan **Asynchronous Event Loop** (`asyncio`) agar TUI tid
 ### Fase 3 — Penyusunan Prompt & AI Decision *(tiap tutup candle M5)*
 1. Jika `positions_total() == 0`, ambil **3 lesson LOSS + 2 lesson WIN terakhir** dari `learning_memory`
 2. Build prompt dinamis (Market Context + Memori weighted)
-3. API call ke `http://localhost:11434/api/generate`
+3. API call ke `http://localhost:20128/v1` (9Router endpoint)
 4. Parse JSON dari respons; jika gagal → retry max 2x → fallback: `{"action": "HOLD", "confidence": 0, "reason": "parsing error"}`
 
 ### Fase 4 — Risk Engine (Validasi)
@@ -214,7 +213,7 @@ OUTPUT HARUS BERUPA JSON VALID, TANPA TEKS TAMBAHAN.
 | `trade setup` | **Interactive wizard** untuk input symbol, capital, lot, max trades |
 | `trade config` | Lihat konfigurasi saat ini |
 | `trade status` | Cek koneksi MT5, tampilkan Balance & Equity |
-| `trade models` | Tampilkan AI provider tersedia (9Router & Ollama) |
+| `trade models` | Tampilkan AI provider tersedia (9Router & 9Router) |
 | `trade start` | Mulai loop trading + render TUI dasbor live |
 | `trade run` | Jalankan headless (auto mode, tanpa TUI) |
 
@@ -257,11 +256,24 @@ Panel dibagi 5 area dan di-refresh secara async (tidak spam ke bawah):
 
 ## 📦 Dependencies
 
+Untuk Python packages:
 ```bash
 pip install MetaTrader5 pandas pandas_ta textual rich pyyaml aiohttp
 ```
 
-Ollama harus berjalan lokal:
+Untuk AI Providers (pilih salah satu atau keduanya):
+
+### A. 9Router (Recommended - 60+ AI providers & auto-fallback)
+- Install Node.js jika belum ada
+- Install 9Router CLI global:
+```bash
+npm install -g 9router
+9router # Jalankan dan konfigurasi provider di browser
+```
+
+**B. 9Router (Single Provider - mendukung 60+ providers termasuk Ollama lokal)**
+- Install 9Router dari [https://9router.com](https://9router.com)
+- Jalankan 9Router server & pull model:
 ```bash
 ollama serve
 ollama pull qwen3:8b   # atau model lain sesuai config
@@ -288,6 +300,11 @@ ollama pull qwen3:8b   # atau model lain sesuai config
 | 13 | **Tidak track posisi** → bingung posisi mana milik bot | `tracked_positions: Dict[int, Dict]` map ticket → decision + context |
 | 14 | **Context stale saat posisi terbuka** | `get_context()` **selalu** dipanggil, tidak pernah di-skip |
 | 15 | **Counter today_trades increment** saat order open | Increment **saat position close**, bukan saat open |
+| 16 | **AI Decision Timing Inconsistent** (doc vs code) | Diperjelas: AI decision setiap 60s, bukan M5 candle close |
+| 17 | **Position Monitoring Terlalu Lambat** (60s) | Monitoring 10s saat ada posisi, 60s saat idle |
+| 18 | **Position Tracking Tidak Persisten** | `tracked_positions` disimpan ke `db/tracked_positions.json` |
+| 19 | **Daily Reset Timezone Issues** | Gunakan broker server time dari MT5, bukan system time |
+| 20 | **Circuit Breaker Scope Terbatas** | Track error by category (AI, MT5, DB, Network) + exponential backoff |
 
 ---
 
@@ -299,13 +316,13 @@ ollama pull qwen3:8b   # atau model lain sesuai config
    pip install -r requirements.txt
    ```
 
-2. **Setup 9Router (Recommended) atau Ollama**
+2. **Setup 9Router (Recommended) atau 9Router**
    ```bash
    # Option A: 9Router (60+ providers, auto-fallback)
    npm install -g 9router
    9router
    
-   # Option B: Ollama (local LLM)
+   # Option B: 9Router (local LLM)
    ollama serve
    ollama pull qwen3:8b
    ```
@@ -320,7 +337,7 @@ ollama pull qwen3:8b   # atau model lain sesuai config
    - Lot size
    - Max trades per day
    - Confidence threshold
-   - AI Provider (9Router/Ollama)
+   - AI Provider (9Router/9Router)
 
 4. **Cek Koneksi MT5**
    ```bash
@@ -358,12 +375,12 @@ cd trading-agent
 pip install -r requirements.txt
 ```
 
-#### B. Setup Ollama (Local LLM)
+#### B. Setup 9Router (Local LLM)
 ```bash
-# Cek apakah Ollama sudah terinstall
+# Cek apakah 9Router sudah terinstall
 ollama --version
 
-# Jika belum, install dari https://ollama.com/download
+# Jika belum, install dari https://9router.com
 
 # Pull model yang akan digunakan
 ollama pull qwen3:8b
@@ -379,36 +396,64 @@ ollama pull mimo:latest
 
 ---
 
-### 2. Konfigurasi
+### 2. Konfigurasi (Menggunakan Setup Wizard)
 
-Edit `config.yaml` sesuai kebutuhan:
+**Rekomendasi:** Gunakan interactive setup wizard untuk konfigurasi pertama kali:
+
+```bash
+python trade.py setup
+```
+
+Anda akan diminta input:
+- **Symbol** (XAUUSD, EURUSD, GBPUSD, dll)
+- **Capital/Equity** (dari akun MT5)
+- **Lot Size** (0.01, 0.02, dll)
+- **Max Trades Per Day** (3, 5, dll)
+- **Confidence Threshold** (80%)
+- **AI Provider** (9Router atau 9Router)
+
+**Atau edit manual** `config.yaml`:
 
 ```yaml
+# Konfigurasi Dasar
 symbol: XAUUSD
 lot: 0.01
-model: qwen3:8b
 mode: assisted            # assisted / auto
 max_trades_per_day: 3
 confidence_threshold: 80
+
+# Risk Management
 max_drawdown_percent: 5   # 5% dari equity awal
 spread_multiplier_limit: 0.3  # max spread > 30% ATR → skip
 circuit_breaker_max_errors: 3
 circuit_breaker_sleep_hours: 1
+
+# Dynamic Exit (ATR-based)
 atr_sl_multiplier: 1.5
 atr_tp_multiplier: 2.5
 atr_trailing_multiplier: 1.0
 breakeven_after_atr: 1.0
 time_exit_minutes: 20
 time_exit_min_profit_atr: 0.5
-magic_number: 99999
+
+# Execution
+magic_number: 99999     # Auto-generate jika masih default
 max_deviation: 10
 db_path: db/sqlite.db
+
+# AI Provider
+provider: ninerouter    # ninerouter / ollama
+model: auto              # model spesifik atau auto-route
+ninerouter_url: http://localhost:20128/v1
+ollama_url: http://localhost:11434
 ```
 
 **Penjelasan Parameter Penting:**
 - `mode: assisted` → Anda harus tekan 'a' di TUI untuk approve sinyal
 - `mode: auto` → Bot langsung eksekusi tanpa konfirmasi
 - `max_drawdown_percent: 5` → Bot berhenti otomatis jika drawdown ≥5%
+- `provider: ninerouter` → Gunakan 9Router dengan 60+ providers dan auto-fallback
+- `magic_number: 99999` → Auto-generate unique number jika masih default
 - `circuit_breaker_max_errors: 3` → Bot sleep 1 jam jika error bertubi-tubi
 
 ---
@@ -442,7 +487,7 @@ python trade.py models
 
 Output:
 ```
-=== AVAILABLE AI MODELS (Ollama) ===
+=== AVAILABLE AI MODELS (9Router) ===
 
 Installed models:
   - qwen3:8b
@@ -507,7 +552,7 @@ conn.close()
 | Masalah | Solusi |
 |---|---|
 | MT5 not connected | 1. Pastikan MT5 terbuka dan login<br>2. Cek "Allow automated trading" di Tools → Options<br>3. Restart MT5 |
-| Ollama not available | 1. Jalankan `ollama serve`<br>2. Cek `ollama list` untuk model tersedia<br>3. Pull model: `ollama pull qwen3:8b` |
+| 9Router not available | 1. Jalankan `ollama serve`<br>2. Cek `ollama list` untuk model tersedia<br>3. Pull model: `ollama pull qwen3:8b` |
 | Spread too high | Bot otomatis skip. Tunggu spread menurun atau cek broker |
 | Drawdown limit reached | Bot masuk mode HIBERNATE. Tunggu besok atau reset equity awal |
 | Circuit breaker active | Bot sleep 1 jam. Tunggu atau restart manual |
@@ -644,9 +689,9 @@ Happy Trading! 🚀
 - ✅ **Zero downtime** - auto-switch saat quota habis
 - ✅ **Free tier tersedia** - Kiro, iFlow, Qwen, OpenCode
 
-### Keunggulan vs Ollama
+### Keunggulan vs 9Router
 
-| Fitur | Ollama | 9Router |
+| Fitur | 9Router | 9Router |
 |---|---|---|
 | Providers | 1 (local) | 60+ |
 | Fallback | ❌ | ✅ 3-tier |

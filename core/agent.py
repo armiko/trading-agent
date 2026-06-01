@@ -1,7 +1,7 @@
 """
 Main Agent Orchestration.
 Menggabungkan Market, AI, Risk, Execution dalam satu event loop async.
-FIXED: Fase 7 (Learning), Daily Reset, Position Tracking, Context Staleness, Counter Timing
+FIXES: Fase 7, Daily Reset, Position Tracking, Context Staleness, Counter Timing
 """
 import asyncio
 import yaml
@@ -24,33 +24,41 @@ from core.database import init_database
 class TradingAgent:
     """
     Orchestrator utama untuk trading agent.
-    Menjalankan 7 fase alur sistem dengan fixes:
-    - Fase 7 (Learning) implemented
-    - Auto daily reset
-    - Position tracking
-    - Context always fresh
-    - Counter timing fixed
+    Menjalankan 7 fase alur sistem.
+    FIXES: Fase 7, Daily Reset, Position Tracking, Context Fresh, Counter Timing
     """
 
     def __init__(self, config_path: str = "config.yaml"):
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
 
-"        # Init database\n        init_database(self.config.get(\"db_path\", \"db/sqlite.db\"))\n\n        # FIX #16: Generate unique magic number jika masih default\n        default_magic = 99999\n        if self.config.get(\"magic_number", default_magic) == default_magic:\n            # Generate unique: prefix 999 + random 4 digits\n            self.config[\"magic_number\"] = int(f\"999{random.randint(1000, 9999)}\")\n            print(f\"[AGENT] Generated unique magic number: {self.config['magic_number']}\")\n\n        # Init komponen"
+        # Init database
+        init_database(self.config.get("db_path", "db/sqlite.db"))
+
+        # FIX #16: Generate unique magic number jika masih default
+        default_magic = 99999
+        if self.config.get("magic_number", default_magic) == default_magic:
+            self.config["magic_number"] = int(f"999{random.randint(1000, 9999)}")
+            print(f"[AGENT] Generated unique magic number: {self.config['magic_number']}")
+
+        # Init komponen
         self.market = MarketData(
             symbol=self.config.get("symbol", "XAUUSD"),
             atr_multiplier_limit=self.config.get("spread_multiplier_limit", 0.3),
         )
+        # FIX: Single 9Router provider (tidak perlu param provider= lagi)
         self.ai = AIDecisionEngine(
-            provider=self.config.get("provider", "ninerouter"),
             model=self.config.get("model", "auto"),
             db_path=self.config.get("db_path", "db/sqlite.db"),
             ninerouter_url=self.config.get("ninerouter_url", "http://localhost:20128/v1"),
-            ninerouter_api_key=self.config.get("ninerouter_api_key", None),
         )
         self.risk = RiskManager(self.config)
         self.executor = ExecutionEngine(self.config)
-        self.learning = LearningMemory(self.config.get("db_path", "db/sqlite.db"))
+        self.learning = LearningMemory(
+            self.config.get("db_path", "db/sqlite.db"),
+            loss_count=self.config.get("learning_loss_count", 3),
+            win_count=self.config.get("learning_win_count", 2)
+        )
 
         # State
         self.running = False
@@ -60,11 +68,11 @@ class TradingAgent:
         self.current_equity: float = 0.0
         self.daily_pnl: float = 0.0
         self.current_date: date = date.today()
-        
-        # FIX 3: Position tracking - map ticket → {decision, context, open_time}
+
+        # FIX 3: Position tracking - map ticket -> {decision, context, open_time}
         self.tracked_positions: Dict[int, Dict[str, Any]] = {}
         self.tracked_positions_file = "db/tracked_positions.json"
-        
+
         # FIX #13: Signal expiry for assisted mode
         self.signal_timestamp: Optional[datetime] = None
         self.signal_expiry_minutes = 5
@@ -73,7 +81,6 @@ class TradingAgent:
         """FIX #4: Persist tracked positions to file"""
         try:
             os.makedirs("db", exist_ok=True)
-            # Convert datetime to ISO string for JSON serialization
             serializable = {}
             for ticket, data in self.tracked_positions.items():
                 serializable[str(ticket)] = {
@@ -92,7 +99,6 @@ class TradingAgent:
             if os.path.exists(self.tracked_positions_file):
                 with open(self.tracked_positions_file, "r") as f:
                     data = json.load(f)
-                # Convert back to proper types
                 for ticket_str, pos_data in data.items():
                     ticket = int(ticket_str)
                     pos_data["open_time"] = datetime.fromisoformat(pos_data["open_time"])
@@ -123,26 +129,15 @@ class TradingAgent:
         return False
 
     async def check_daily_reset(self):
-        """FIX #7: Auto daily reset - pakai broker time dari MT5"""
+        """FIX #7: Auto daily reset"""
         today = date.today()
-        
-        # FIX #7: Gunakan broker time jika tersedia
-        try:
-            if mt5.terminal_info():
-                # MT5 server time
-                server_time = datetime.now()  # fallback
-                today = date.today()
-        except Exception:
-            pass
-            
         if today != self.current_date:
-            print(f"[AGENT] Date changed: {self.current_date} → {today}. Resetting daily state...")
+            print(f"[AGENT] Date changed: {self.current_date} -> {today}. Resetting daily state...")
             self.current_date = today
             account = mt5.account_info()
             if account:
                 self.risk.reset_daily_state(account.equity)
                 self.current_equity = account.equity
-                print(f"[AGENT] Daily reset complete. New equity baseline: {account.equity}")
 
     async def data_gathering(self):
         """Fase 2: Data Gathering & Feature Engineering"""
@@ -171,16 +166,14 @@ class TradingAgent:
 
         closed = []
         current_open_tickets = {p.ticket for p in await self.executor.get_open_positions()}
-        
+
         for ticket, tracking_data in list(self.tracked_positions.items()):
             if ticket not in current_open_tickets:
-                # Position sudah close, ambil detail dari history
                 deals = mt5.history_deals_get(position=ticket)
                 if deals and len(deals) >= 2:
-                    # deals[0] = open, deals[-1] = close
                     open_deal = deals[0]
                     close_deal = deals[-1]
-                    
+
                     closed_info = {
                         "ticket": ticket,
                         "type": "BUY" if open_deal.type == mt5.ORDER_TYPE_BUY else "SELL",
@@ -193,14 +186,13 @@ class TradingAgent:
                         "context": tracking_data["context"],
                     }
                     closed.append(closed_info)
-                    
-                # Remove dari tracking
+
                 del self.tracked_positions[ticket]
-        
+
         # FIX #4: Save after removing closed positions
         if closed:
             self.save_tracked_positions()
-                
+
         return closed
 
     async def process_closed_positions(self, closed_positions: list):
@@ -209,7 +201,6 @@ class TradingAgent:
         Process closed positions: save to DB, self-reflect, save lesson.
         """
         for pos in closed_positions:
-            # Save trade to database
             self.learning.save_trade(
                 ticket=pos["ticket"],
                 order_type=pos["type"],
@@ -221,8 +212,7 @@ class TradingAgent:
                 ai_confidence=pos["decision"]["confidence"],
                 ai_reason=pos["decision"]["reason"],
             )
-            
-            # AI self-reflection
+
             trade_result = {
                 "action": pos["type"],
                 "reason": pos["decision"]["reason"],
@@ -230,18 +220,17 @@ class TradingAgent:
                 "context": pos["context"],
             }
             lesson = await self.ai.self_reflect(trade_result)
-            
-            # Save lesson to learning_memory
+
             result = "WIN" if pos["profit"] > 0 else "LOSS"
             self.learning.save_lesson(
                 market_context=pos["context"],
                 result=result,
                 lesson=lesson,
             )
-            
+
             # FIX 5: Increment counter saat position close, bukan saat open
             self.risk.today_trades += 1
-            
+
             print(f"[AGENT] Fase 7 complete for ticket {pos['ticket']}: {result} {pos['profit']:.2f} USC")
             print(f"[AGENT] Lesson learned: {lesson}")
 
@@ -252,7 +241,7 @@ class TradingAgent:
         """
         # FIX 2: Check daily reset
         await self.check_daily_reset()
-        
+
         # Fase 2: Data gathering
         await self.data_gathering()
 
@@ -338,14 +327,12 @@ class TradingAgent:
     async def execute_signal_assisted(self, decision: Dict[str, Any], context: Dict[str, Any]) -> Optional[int]:
         """
         FIX #13: Helper untuk TUI dengan signal expiry check.
-        Return ticket number jika sukses.
         """
         # FIX #13: Check signal expiry
         if self.signal_timestamp:
             elapsed = (datetime.now() - self.signal_timestamp).total_seconds() / 60
             if elapsed > self.signal_expiry_minutes:
                 print(f"[AGENT] Signal expired ({elapsed:.1f} min > {self.signal_expiry_minutes} min). Re-validating...")
-                # Re-validate context
                 fresh_context = await self.market.get_context()
                 validation = self.risk.validate(
                     action=decision["action"],
@@ -357,7 +344,7 @@ class TradingAgent:
                     print(f"[AGENT] Re-validation failed: {validation['reason']}")
                     return None
                 context = fresh_context
-        
+
         ticket = await self.executor.send_order(
             action=decision["action"],
             atr=self.market.current_atr,
@@ -365,13 +352,11 @@ class TradingAgent:
         )
 
         if ticket:
-            # FIX 3: Track position
             self.tracked_positions[ticket] = {
                 "decision": decision,
                 "context": context.copy(),
                 "open_time": datetime.now(),
             }
-            # FIX #4: Save tracked positions
             self.save_tracked_positions()
             self.risk.register_success()
             print(f"[AGENT] Position {ticket} tracked (assisted mode)")
@@ -382,18 +367,14 @@ class TradingAgent:
 
     async def run(self):
         """
-        Main loop: Fase 2-7 berulang setiap 60 detik.
-        FIX #2: Position monitoring lebih cepat (10s) saat ada posisi.
-        Fase 6 (position monitoring) berjalan di setiap cycle.
-        Fase 7 (learning) berjalan setelah posisi tertutup.
+        Main loop: Fase 2-7 berulang.
+        FIX #2: Monitoring 10s saat ada posisi, 60s saat idle.
         """
         if not await self.initialize():
             return
 
         self.running = True
         print("[AGENT] Starting trading loop...")
-        print("[AGENT] All fixes applied: Fase 7, Daily Reset, Position Tracking, Context Fresh, Counter Timing")
-        print("[AGENT] FIX #1: AI decision every 60s | FIX #2: Position monitoring every 10s when open")
 
         while self.running:
             try:
@@ -405,8 +386,6 @@ class TradingAgent:
                 self.risk.register_error()
 
             # FIX #2: Dynamic sleep interval
-            # Jika ada posisi terbuka → monitor setiap 10 detik
-            # Jika tidak ada posisi → cycle setiap 60 detik
             positions = await self.executor.get_open_positions()
             sleep_interval = 10 if positions else 60
             await asyncio.sleep(sleep_interval)

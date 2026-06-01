@@ -53,8 +53,8 @@ def validate_config(config: dict) -> list:
         warnings.append(f"max_drawdown_percent must be 1-100, got {dd}")
     
     # Provider validation
-    if config.get("provider") not in ["ninerouter", "ollama"]:
-        warnings.append(f"provider must be 'ninerouter' or 'ollama', got {config.get('provider')}")
+    if config.get("provider") not in ["ninerouter"]:
+        warnings.append(f"provider must be 'ninerouter', got {config.get('provider')}")
     
     return warnings
 

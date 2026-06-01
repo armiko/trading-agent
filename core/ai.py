@@ -1,15 +1,19 @@
 """
-AI Decision Engine: Menyusun prompt, komunikasi dengan AI provider (Ollama/9Router), parsing response.
-- Support provider switching via config
+AI Decision Engine: Menyusun prompt, komunikasi dengan 9Router AI provider, parsing response.
+- Single provider: 9Router (supports 60+ providers + local Ollama via 9Router)
 - Retry 2x jika parsing gagal
 - Fallback ke HOLD jika semua retry gagal
 - Memory: ambil 3 loss + 2 win terbaru
+- FIX #6: Learning memory edge cases (fallback defaults)
+- FIX #12: Provider fallback exhausted logging
+- FIX #17: Provider performance tracking
 """
 import json
 import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from .learning import LearningMemory
+from providers.ninerouter import NineRouterClient
 
 
 SYSTEM_INSTRUCTION = (
@@ -23,99 +27,42 @@ SYSTEM_INSTRUCTION = (
 class AIDecisionEngine:
     def __init__(
         self,
-        provider: str = "ollama",
-        model: str = "qwen3:8b",
+        model: str = "auto",
         db_path: str = "db/sqlite.db",
         ninerouter_url: str = "http://localhost:20128/v1",
         ninerouter_api_key: Optional[str] = None,
     ):
-        self.provider = provider
+        """FIX: Single provider 9Router. Support Ollama lokal via 9Router."""
         self.db_path = db_path
         self.learning = LearningMemory(db_path)
         self.last_decision: Optional[Dict[str, Any]] = None
 
-        # Setup provider client
-        if provider == "ninerouter":
-            from providers.ninerouter import NineRouterClient
-            self.client = NineRouterClient(
-                base_url=ninerouter_url,
-                model=model if model != "auto" else "auto",
-                api_key=ninerouter_api_key,
-            )
-            self.model_display = f"9router/{ninerouter_url}"
-        else:
-            from providers.ollama import OllamaClient
-            self.client = OllamaClient(base_url="http://localhost:11434")
-            self.model_display = model
-
+        # Setup 9Router client (single provider untuk semua AI)
+        self.client = NineRouterClient(
+            base_url=ninerouter_url,
+            model=model if model != "auto" else "auto",
+            api_key=ninerouter_api_key,
+        )
         self.model = model
+        self.model_display = f"9router/{model}"
 
-        # Fallback handler
-        self.fallback_provider = None
-        self._setup_fallback()
-        
         # FIX #17: Provider performance tracking
         self.provider_stats = {
             "calls": 0,
             "successes": 0,
             "failures": 0,
-            "fallback_used": 0,
             "avg_latency_ms": 0,
             "last_used": None
         }
 
-    def _setup_fallback(self):
-        """
-        Setup fallback: jika provider utama gagal terus,
-        coba provider lain.
-        """
-        if self.provider == "ollama":
-            # Ollama -> 9Router fallback
-            try:
-                from providers.ninerouter import NineRouterClient
-                self.fallback_provider = NineRouterClient(
-                    base_url="http://localhost:20128/v1",
-                    model="auto",
-                )
-            except Exception:
-                self.fallback_provider = None
-        elif self.provider == "ninerouter":
-            # 9Router -> Ollama fallback
-            try:
-                from providers.ollama import OllamaClient
-                self.fallback_provider = OllamaClient()
-            except Exception:
-                self.fallback_provider = None
-
     async def call_provider(self, prompt: str) -> Optional[str]:
         """
-        FIX #12: Panggil AI provider dengan fallback dan logging.
-        Return None jika semua provider gagal.
+        FIX #12: Panggil 9Router (single provider). Handle semua model termasuk Ollama via 9Router.
         """
-        # Coba provider utama
-        if self.provider == "ninerouter":
-            result = await self.client.generate(prompt)
-            if result:
-                return result
-            # Fallback ke Ollama
-            print("[AI] 9Router failed, falling back to Ollama...")
-            if self.fallback_provider:
-                from providers.ollama import OllamaClient
-                if isinstance(self.fallback_provider, OllamaClient):
-                    return await self.fallback_provider.generate(self.model, prompt)
-        else:
-            # Ollama -> panggil dengan model
-            result = await self.client.generate(self.model, prompt)
-            if result:
-                return result
-            # Fallback ke 9Router
-            print("[AI] Ollama failed, falling back to 9Router...")
-            if self.fallback_provider:
-                return await self.fallback_provider.generate(prompt)
-
-        # FIX #12: Semua provider gagal
-        print("[AI] CRITICAL: All AI providers failed (9Router + Ollama)")
-        return None
+        result = await self.client.generate(prompt)
+        if not result:
+            print("[AI] CRITICAL: 9Router failed to respond")
+        return result
 
     async def build_prompt(self, context: Dict[str, Any]) -> str:
         """FIX #6: Bangun prompt dengan market context + learning memory (with fallback)"""

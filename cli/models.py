@@ -1,26 +1,14 @@
 """
 CLI command: trade models
-Tampilkan model AI yang tersedia dari Ollama dan 9Router
+Tampilkan model AI yang tersedia dari 9Router
+(termasuk Ollama yang terhubung via 9Router)
 """
 import sys
 import asyncio
 
 
-async def check_ollama():
-    """Cek Ollama models"""
-    try:
-        from providers.ollama import OllamaClient
-        client = OllamaClient()
-        if await client.is_available():
-            models = await client.list_models()
-            return models
-    except Exception:
-        pass
-    return None
-
-
 async def check_ninerouter():
-    """Cek 9Router models"""
+    """Cek 9Router models (termasuk local Ollama via 9Router)"""
     try:
         from providers.ninerouter import NineRouterClient
         client = NineRouterClient()
@@ -34,42 +22,29 @@ async def check_ninerouter():
 
 async def run_models():
     """Entry point untuk 'trade models'"""
-    print("\n=== AVAILABLE AI PROVIDERS ===\n")
+    print("\n=== AI PROVIDER (9Router) ===\n")
 
-    # Cek Ollama
-    print("1. Ollama (http://localhost:11434):")
-    ollama_models = await check_ollama()
-    if ollama_models:
-        for m in ollama_models:
+    print("9Router (http://localhost:20128/v1):")
+    models = await check_ninerouter()
+    if models:
+        for m in models[:15]:
             print(f"   ✓ {m}")
+        if len(models) > 15:
+            print(f"   ... and {len(models) - 15} more")
+        print(f"\n   Total: {len(models)} models available")
+        print("\n   (termasuk local Ollama jika terhubung ke 9Router)")
     else:
-        print("   ✗ Not available")
-        print("   Run: ollama serve")
+        print("   ✗ 9Router not available")
+        print("   Install: npm install -g 9router && 9router")
 
     print()
-
-    # Cek 9Router
-    print("2. 9Router (http://localhost:20128/v1):")
-    ninerouter_models = await check_ninerouter()
-    if ninerouter_models:
-        for m in ninerouter_models[:10]:  # show top 10
-            print(f"   ✓ {m}")
-        if len(ninerouter_models) > 10:
-            print(f"   ... and {len(ninerouter_models) - 10} more")
-    else:
-        print("   ✗ Not available")
-        print("   Run: npm install -g 9router && 9router")
-
+    print("Tips:")
+    print("   - model: auto       → 9Router auto-routes ke best provider")
+    print("   - model: ollama     → Use local Ollama via 9Router")
+    print("   - model: kiro       → Use Kiro AI (free)")
+    print("   - model: qwen       → Use Qwen (free)")
     print()
-
-    # Recommendations
-    print("3. Recommendations:")
-    print("   - Use 9Router for auto-fallback to 60+ providers")
-    print("   - Use Ollama for local privacy (requires GPU)")
-    print()
-    print("   Edit config.yaml to switch:")
-    print('     provider: ninerouter  # or ollama')
-    print('     model: auto           # or specific model name')
+    print("   Config: python trade.py setup")
     print()
 
 

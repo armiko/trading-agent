@@ -78,9 +78,7 @@ def validate_mode(value):
 
 def validate_provider(value):
     """Validate AI provider"""
-    if value.lower() not in ['ninerouter', 'ollama']:
-        return False, "Provider harus 'ninerouter' atau 'ollama'"
-    return True, None
+    return True, None  # 9Router single provider
 
 
 def main():
@@ -138,23 +136,17 @@ def main():
     print("-" * 60)
     
     provider = get_input(
-        "Provider (ninerouter/ollama)",
+        "Provider (9Router)",
         "ninerouter",
         validate_provider
     ).lower()
     
-    if provider == "ninerouter":
-        model = get_input(
-            "Model (auto untuk auto-routing)",
-            "auto",
-            lambda x: (True, None)
-        )
-    else:
-        model = get_input(
-            "Model Ollama",
-            "qwen3:8b",
-            lambda x: (True, None)
-        )
+    # 9Router single provider (supports Ollama via 9Router)
+    model = get_input(
+        "Model (auto untuk auto-routing)",
+        "auto",
+        lambda x: (True, None)
+    )
     
     # Trading Mode
     print("\n🎮 TRADING MODE")
@@ -214,7 +206,7 @@ def main():
         config['ninerouter_url'] = 'http://localhost:20128/v1'
         config['ninerouter_api_key'] = None
     else:
-        config['ollama_url'] = 'http://localhost:11434'
+        pass  # fallback ke default 9Router
     
     # Save config
     with open('config.yaml', 'w') as f:
@@ -223,10 +215,7 @@ def main():
     print("\n✅ Konfigurasi berhasil disimpan ke config.yaml")
     print("\n🚀 Next steps:")
     print("   1. Pastikan MT5 sudah running")
-    if provider == 'ninerouter':
-        print("   2. Jalankan: 9router")
-    else:
-        print("   2. Jalankan: ollama serve")
+    print("   2. Jalankan: 9router")
     print("   3. Jalankan: python trade.py start")
     print("\nHappy Trading! 🎯\n")
 
