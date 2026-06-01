@@ -1,14 +1,20 @@
 """
 Market data gathering dengan multi-timeframe caching.
-- Update M5 setiap 1 menit
-- Update M15 setiap 15 menit
-- Spread check dinamis berdasarkan ATR
+ENHANCED VERSION:
+- Richer context dengan Support/Resistance, Price Action, Market Structure
+- Dynamic spread check berdasarkan ATR
+- Session filter integration
 """
 import asyncio
 import MetaTrader5 as mt5
 import pandas as pd
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
+
+from core.indicators import (
+    compute_indicators, get_trend_label, get_latest_values,
+    get_enhanced_context, detect_support_resistance, analyze_price_action, analyze_market_structure
+)
 
 
 class MarketData:
@@ -30,6 +36,12 @@ class MarketData:
         self.trend_m5: str = "NEUTRAL"
         self.session: str = ""
         self.is_market_open: bool = False
+
+        # Enhanced context storage
+        self.enhanced_context: Dict[str, Any] = {}
+        self.support_resistance: Dict[str, Any] = {}
+        self.price_action: Dict[str, Any] = {}
+        self.market_structure: Dict[str, Any] = {}
 
     async def _ensure_mt5_connected(self) -> bool:
         if not mt5.terminal_info():
@@ -93,6 +105,8 @@ class MarketData:
     async def update_m5(self) -> Optional[pd.DataFrame]:
         """Update M5 (boleh tiap 1 menit)"""
         self._cache_m5 = await self.fetch_rates(mt5.TIMEFRAME_M5, 100)
+        if self._cache_m5 is not None:
+            self._cache_m5 = compute_indicators(self._cache_m5)
         self._last_m5_update = datetime.now()
         return self._cache_m5
 
@@ -106,6 +120,8 @@ class MarketData:
             return self._cache_m15  # cached, kurang dari 2 menit
 
         self._cache_m15 = await self.fetch_rates(mt5.TIMEFRAME_M15, 100)
+        if self._cache_m15 is not None:
+            self._cache_m15 = compute_indicators(self._cache_m15)
         self._last_m15_update = now
         return self._cache_m15
 
@@ -125,11 +141,31 @@ class MarketData:
         await self.update_m15()
         await self.fetch_spread()
 
-        return {
+        # Get enhanced context
+        if self._cache_m5 is not None:
+            self.enhanced_context = get_enhanced_context(self._cache_m5)
+            self.support_resistance = self.enhanced_context.get("support_resistance", {})
+            self.price_action = self.enhanced_context.get("price_action", {})
+            self.market_structure = self.enhanced_context.get("market_structure", {})
+
+        # Get latest values
+        if self._cache_m5 is not None:
+            rsi, atr, ema_diff = get_latest_values(self._cache_m5)
+            self.current_rsi = rsi
+            self.current_atr = atr
+
+        # Build comprehensive context
+        context = {
             "trend_m15": self.trend_m15,
             "trend_m5": self.trend_m5,
             "rsi": round(self.current_rsi, 1),
             "atr": round(self.current_atr, 1),
+            "ema_diff": round(ema_diff, 2) if self._cache_m5 is not None else 0,
             "spread": self.current_spread,
             "session": self.session,
+            "market_structure": self.market_structure,
+            "price_action": self.price_action,
+            "support_resistance": self.support_resistance,
         }
+
+        return context
