@@ -2,6 +2,8 @@
 Learning Memory: Mengelola SQLite database untuk trade history dan self-reflection.
 - trade_history: catat semua trade
 - learning_memory: catat lesson learned dari AI
+- FIX #15: Database timeout + retry untuk concurrent access
+- FIX #18: Configurable weighted memory
 """
 import sqlite3
 from datetime import datetime, date
@@ -9,14 +11,23 @@ from typing import Dict, Any, List, Optional
 
 
 class LearningMemory:
-    def __init__(self, db_path: str = "db/sqlite.db"):
+    def __init__(self, db_path: str = "db/sqlite.db", loss_count: int = 3, win_count: int = 2):
         self.db_path = db_path
+        self.loss_count = loss_count  # FIX #18: configurable
+        self.win_count = win_count    # FIX #18: configurable
+        self.db_timeout = 30  # FIX #15: timeout dalam detik
         self._init_db()
+
+    def _get_conn(self) -> sqlite3.Connection:
+        """FIX #15: Get connection dengan timeout"""
+        conn = sqlite3.connect(self.db_path, timeout=self.db_timeout)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")  # 5 detik retry
+        return conn
 
     def _init_db(self):
         """Buat tabel jika belum ada (WAL mode enabled)"""
-        conn = sqlite3.connect(self.db_path)
-        conn.execute("PRAGMA journal_mode=WAL")
+        conn = self._get_conn()
         c = conn.cursor()
 
         # trade_history
@@ -61,7 +72,7 @@ class LearningMemory:
         ai_reason: str,
     ):
         """Simpan trade ke database"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         c = conn.cursor()
         c.execute("""
             INSERT OR REPLACE INTO trade_history
@@ -82,7 +93,7 @@ class LearningMemory:
         lesson: str,
     ):
         """Simpan lesson learned ke database"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         c = conn.cursor()
         c.execute("""
             INSERT INTO learning_memory (date, market_context, result, lesson)
@@ -98,7 +109,7 @@ class LearningMemory:
 
     def get_recent_lessons(self, limit: int = 5) -> List[Dict[str, Any]]:
         """Ambil N lesson terbaru"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         c.execute("""
@@ -111,13 +122,16 @@ class LearningMemory:
         return [dict(row) for row in rows]
 
     def get_weighted_memory(
-        self, limit_loss: int = 3, limit_win: int = 2
+        self, limit_loss: int = None, limit_win: int = None
     ) -> List[Dict[str, Any]]:
         """
-        Ambil memory dengan weighted: lebih banyak loss daripada win.
-        Ini membantu AI belajar dari kesalahan lebih banyak.
+        FIX #18: Ambil memory dengan weighted (configurable via constructor).
+        Default: 3 loss + 2 win. Bisa diubah di config.yaml.
         """
-        conn = sqlite3.connect(self.db_path)
+        limit_loss = limit_loss or self.loss_count
+        limit_win = limit_win or self.win_count
+        
+        conn = self._get_conn()
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
 
@@ -147,7 +161,7 @@ class LearningMemory:
     def get_daily_stats(self) -> Dict[str, Any]:
         """Statistik trade hari ini"""
         today = date.today().isoformat()
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         c = conn.cursor()
 
         c.execute("""

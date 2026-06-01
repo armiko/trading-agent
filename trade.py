@@ -25,11 +25,53 @@ def print_usage():
     print("  run          Run headless (auto mode)")
 
 
+def validate_config(config: dict) -> list:
+    """FIX #14: Validasi konfigurasi, return list of warnings"""
+    warnings = []
+    
+    # Required fields
+    required = ["symbol", "lot", "provider", "mode"]
+    for field in required:
+        if field not in config:
+            warnings.append(f"Missing required field: {field}")
+    
+    # Symbol validation
+    valid_symbols = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "BTCUSD"]
+    if config.get("symbol") not in valid_symbols:
+        warnings.append(f"Invalid symbol: {config.get('symbol')}. Valid: {valid_symbols}")
+    
+    # Numeric validations
+    if config.get("lot", 0) <= 0:
+        warnings.append("Lot must be > 0")
+    if config.get("max_trades_per_day", 1) < 1:
+        warnings.append("max_trades_per_day must be >= 1")
+    conf = config.get("confidence_threshold", 80)
+    if conf < 0 or conf > 100:
+        warnings.append(f"confidence_threshold must be 0-100, got {conf}")
+    dd = config.get("max_drawdown_percent", 5)
+    if dd <= 0 or dd > 100:
+        warnings.append(f"max_drawdown_percent must be 1-100, got {dd}")
+    
+    # Provider validation
+    if config.get("provider") not in ["ninerouter", "ollama"]:
+        warnings.append(f"provider must be 'ninerouter' or 'ollama', got {config.get('provider')}")
+    
+    return warnings
+
+
 def show_config():
-    """Tampilkan konfigurasi saat ini"""
+    """FIX #14: Tampilkan konfigurasi saat ini dengan validasi"""
     try:
         with open("config.yaml", "r") as f:
             config = yaml.safe_load(f)
+        
+        # Validate
+        warnings = validate_config(config)
+        if warnings:
+            print("\n⚠️  CONFIG WARNINGS:")
+            for w in warnings:
+                print(f"   ❌ {w}")
+            print()
         
         print("\n=== CURRENT CONFIGURATION ===\n")
         print(f"Symbol:              {config.get('symbol', 'N/A')}")
@@ -41,12 +83,16 @@ def show_config():
         print(f"AI Provider:         {config.get('provider', 'N/A')}")
         print(f"Model:               {config.get('model', 'N/A')}")
         print(f"Mode:                {config.get('mode', 'N/A')}")
+        print(f"Learning Loss/ Win:  {config.get('learning_loss_count', 3)} loss + {config.get('learning_win_count', 2)} win")
         print()
         print("To edit, run: python trade.py setup")
         print()
     except FileNotFoundError:
         print("\n❌ config.yaml tidak ditemukan.")
         print("Run: python trade.py setup")
+        print()
+    except yaml.YAMLError:
+        print("\n❌ config.yaml invalid YAML format.")
         print()
 
 
@@ -73,10 +119,42 @@ def main():
         asyncio.run(run_models())
 
     elif command == "start":
+        # FIX #14: Validate config before starting
+        try:
+            with open("config.yaml", "r") as f:
+                config = yaml.safe_load(f)
+            warnings = validate_config(config)
+            if warnings:
+                print("\n⚠️  CONFIG VALIDATION WARNINGS:")
+                for w in warnings:
+                    print(f"   ❌ {w}")
+                confirm = input("\nContinue anyway? (y/n): ").strip().lower()
+                if confirm != 'y':
+                    print("Aborted. Fix config with: python trade.py setup")
+                    sys.exit(1)
+        except Exception as e:
+            print(f"\n❌ Config validation failed: {e}")
+            sys.exit(1)
+        
         from cli.start import run_tui
         asyncio.run(run_tui())
 
     elif command == "run":
+        # FIX #14: Validate config before running
+        try:
+            with open("config.yaml", "r") as f:
+                config = yaml.safe_load(f)
+            warnings = validate_config(config)
+            if warnings:
+                print("\n❌ CONFIG VALIDATION FAILED:")
+                for w in warnings:
+                    print(f"   ❌ {w}")
+                print("\nFix config with: python trade.py setup")
+                sys.exit(1)
+        except Exception as e:
+            print(f"\n❌ Config validation failed: {e}")
+            sys.exit(1)
+        
         from core.agent import TradingAgent
         agent = TradingAgent()
         asyncio.run(agent.run())

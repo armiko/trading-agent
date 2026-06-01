@@ -130,7 +130,7 @@ class TradingTUI(App):
         yield Footer()
 
     async def on_mount(self) -> None:
-        """Initialize agent saat TUI dimount"""
+        """FIX #19: Initialize agent saat TUI dimount dengan interval lebih cepat"""
         self.log.write("[bold green]Initializing trading agent...[/bold green]")
         
         if not await self.agent.initialize():
@@ -140,11 +140,13 @@ class TradingTUI(App):
         self.log.write("[bold green]Agent initialized successfully[/bold green]")
         self.running = True
         
-        # Start background workers
-        self.set_interval(60, self.update_market_data)
-        self.set_interval(30, self.update_account_info)
-        self.set_interval(60, self.update_positions)
-        self.set_interval(300, self.check_signals)  # 5 menit
+        # FIX #19: Background workers dengan interval lebih cepat
+        self.set_interval(60, self.update_market_data)     # Market: 60s
+        self.set_interval(30, self.update_account_info)    # Account: 30s
+        self.set_interval(10, self.update_positions)       # Positions: 10s (FIX #19)
+        self.set_interval(60, self.check_signals)          # Signals: 60s (FIX #19: from 300s)
+        
+        self.log.write("[dim]Intervals: Market=60s, Account=30s, Positions=10s, Signals=60s[/dim]")
 
     async def update_market_data(self) -> None:
         """Update market data panel"""

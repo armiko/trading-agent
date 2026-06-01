@@ -7,6 +7,7 @@ AI Decision Engine: Menyusun prompt, komunikasi dengan AI provider (Ollama/9Rout
 """
 import json
 import asyncio
+from datetime import datetime
 from typing import Dict, Any, Optional, List
 from .learning import LearningMemory
 
@@ -52,6 +53,16 @@ class AIDecisionEngine:
         # Fallback handler
         self.fallback_provider = None
         self._setup_fallback()
+        
+        # FIX #17: Provider performance tracking
+        self.provider_stats = {
+            "calls": 0,
+            "successes": 0,
+            "failures": 0,
+            "fallback_used": 0,
+            "avg_latency_ms": 0,
+            "last_used": None
+        }
 
     def _setup_fallback(self):
         """
@@ -78,8 +89,8 @@ class AIDecisionEngine:
 
     async def call_provider(self, prompt: str) -> Optional[str]:
         """
-        Panggil AI provider dengan fallback.
-        Prioritaskan provider utama, fallback jika gagal.
+        FIX #12: Panggil AI provider dengan fallback dan logging.
+        Return None jika semua provider gagal.
         """
         # Coba provider utama
         if self.provider == "ninerouter":
@@ -102,10 +113,12 @@ class AIDecisionEngine:
             if self.fallback_provider:
                 return await self.fallback_provider.generate(prompt)
 
+        # FIX #12: Semua provider gagal
+        print("[AI] CRITICAL: All AI providers failed (9Router + Ollama)")
         return None
 
     async def build_prompt(self, context: Dict[str, Any]) -> str:
-        """Bangun prompt dengan market context + learning memory"""
+        """FIX #6: Bangun prompt dengan market context + learning memory (with fallback)"""
         lessons = self.learning.get_weighted_memory(limit_loss=3, limit_win=2)
 
         memory_section = ""
@@ -114,6 +127,12 @@ class AIDecisionEngine:
             for l in lessons:
                 memory_lines.append(f"- {l['lesson']}")
             memory_section = "\n".join(memory_lines)
+        else:
+            # FIX #6: Fallback untuk bot baru (no history)
+            memory_section = """- Hindari entry saat RSI > 70 (overbought) atau < 30 (oversold)
+- Perhatikan trend M15 untuk konfirmasi arah
+- ATR rendah (<10) menandakan market sideways, hindari entry
+- Spread tinggi mengurangi profit potential"""
 
         trend_m15 = context.get("trend_m15", "NEUTRAL")
         trend_m5 = context.get("trend_m5", "NEUTRAL")
@@ -167,9 +186,11 @@ class AIDecisionEngine:
 
     async def decide(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Loop utama: build prompt -> call provider -> parse -> retry jika gagal.
+        FIX #17: Loop utama dengan provider performance tracking.
         """
         prompt = await self.build_prompt(context)
+        start_time = datetime.now()
+        self.provider_stats["calls"] += 1
 
         max_retries = 2
         for attempt in range(max_retries + 1):
@@ -180,11 +201,23 @@ class AIDecisionEngine:
 
             parsed = self._parse_json_response(raw)
             if parsed:
+                # FIX #17: Track success
+                latency = (datetime.now() - start_time).total_seconds() * 1000
+                self.provider_stats["successes"] += 1
+                self.provider_stats["last_used"] = datetime.now().isoformat()
+                # Update rolling average latency
+                prev_avg = self.provider_stats["avg_latency_ms"]
+                n = self.provider_stats["successes"]
+                self.provider_stats["avg_latency_ms"] = ((prev_avg * (n-1)) + latency) / n
+                
                 self.last_decision = parsed
                 return parsed
 
             print(f"[AI] Attempt {attempt+1}: failed to parse: {raw[:80]}...")
 
+        # FIX #17: Track failure
+        self.provider_stats["failures"] += 1
+        
         fallback = {
             "action": "HOLD",
             "confidence": 0,

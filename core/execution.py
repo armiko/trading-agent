@@ -23,6 +23,8 @@ class ExecutionEngine:
         self.breakeven_atr = config.get("breakeven_after_atr", 1.0)
         self.time_exit_min = config.get("time_exit_minutes", 20)
         self.time_exit_profit_atr = config.get("time_exit_min_profit_atr", 0.5)
+        self.spread_multiplier_limit = config.get("spread_multiplier_limit", 0.3)
+        self.atr_minimum = config.get("atr_minimum_points", 8)  # FIX #11
 
     def _get_point_value(self) -> float:
         """Dapatkan nilai 1 point untuk symbol"""
@@ -52,15 +54,31 @@ class ExecutionEngine:
     ) -> Optional[int]:
         """
         Kirim order ke MT5.
+        FIX #3: Re-check spread sebelum order_send()
+        FIX #11: Validate ATR minimum threshold
         Return ticket number jika sukses, None jika gagal.
         """
         if not mt5.terminal_info():
             print("[EXEC] MT5 not connected")
             return None
 
+        # FIX #11: ATR minimum threshold check
+        point = self._get_point_value()
+        atr_points = atr / point
+        if atr_points < self.atr_minimum:
+            print(f"[EXEC] ATR too low ({atr_points:.1f} < {self.atr_minimum}) - market too quiet, skipping")
+            return None
+
         tick = mt5.symbol_info_tick(self.symbol)
         if tick is None:
             print(f"[EXEC] Failed to get tick for {self.symbol}")
+            return None
+
+        # FIX #3: Re-check spread sebelum eksekusi
+        spread = int((tick.ask - tick.bid) / point)
+        max_spread = max(1, int(atr_points * self.spread_multiplier_limit))
+        if spread > max_spread:
+            print(f"[EXEC] Spread too high ({spread} > {max_spread}) - aborting order")
             return None
 
         order_type = mt5.ORDER_TYPE_BUY if action == "BUY" else mt5.ORDER_TYPE_SELL
@@ -180,25 +198,35 @@ class ExecutionEngine:
                 current_price = mt5.symbol_info_tick(self.symbol).ask
                 profit_points = (pos.price_open - current_price) / point
 
-            # Breakeven logic
+            # FIX #9: Dynamic breakeven based on spread
             if profit_points >= (atr_points * self.breakeven_atr):
-                if pos.type == mt5.ORDER_TYPE_BUY:
-                    new_sl = pos.price_open + (2 * point)
-                    if new_sl > pos.sl:
-                        await self.modify_position(pos.ticket, new_sl, pos.tp)
-                        print(f"[EXEC] Breakeven activated for {pos.ticket}")
-                else:
-                    new_sl = pos.price_open - (2 * point)
-                    if new_sl < pos.sl:
-                        await self.modify_position(pos.ticket, new_sl, pos.tp)
-                        print(f"[EXEC] Breakeven activated for {pos.ticket}")
+                tick = mt5.symbol_info_tick(self.symbol)
+                if tick:
+                    spread = int((tick.ask - tick.bid) / point)
+                    # Breakeven = entry + (spread * 1.5) atau minimum 5 points
+                    breakeven_offset = max(5 * point, spread * 1.5 * point)
+                    
+                    if pos.type == mt5.ORDER_TYPE_BUY:
+                        new_sl = pos.price_open + breakeven_offset
+                        if new_sl > pos.sl:
+                            await self.modify_position(pos.ticket, new_sl, pos.tp)
+                            print(f"[EXEC] Breakeven activated for {pos.ticket} (offset: {breakeven_offset/point:.1f} points)")
+                    else:
+                        new_sl = pos.price_open - breakeven_offset
+                        if new_sl < pos.sl:
+                            await self.modify_position(pos.ticket, new_sl, pos.tp)
+                            print(f"[EXEC] Breakeven activated for {pos.ticket} (offset: {breakeven_offset/point:.1f} points)")
 
-            # Time-based exit
+            # FIX #8: Time-based exit dengan rules untuk profit dan loss
             open_time = datetime.fromtimestamp(pos.time)
             duration = (datetime.now() - open_time).total_seconds() / 60
+            
             if duration >= self.time_exit_min:
-                if profit_points < (atr_points * self.time_exit_profit_atr):
+                # Rule 1: Jika profit kecil (< 0.5 ATR) setelah 20 menit → close
+                if 0 <= profit_points < (atr_points * self.time_exit_profit_atr):
                     await self.close_position(pos.ticket)
-                    print(
-                        f"[EXEC] Time-based exit for {pos.ticket} after {duration:.1f} min"
-                    )
+                    print(f"[EXEC] Time-based exit (low profit) for {pos.ticket} after {duration:.1f} min")
+                # Rule 2: Jika loss > 1 ATR setelah 20 menit → force close (cut loss)
+                elif profit_points < -(atr_points * 1.0):
+                    await self.close_position(pos.ticket)
+                    print(f"[EXEC] Time-based exit (cut loss) for {pos.ticket} after {duration:.1f} min")

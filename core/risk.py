@@ -5,6 +5,8 @@ Risk Engine: Memvalidasi apakah sinyal boleh dieksekusi.
 - Confidence threshold
 - Directional conflict dengan M15
 - Circuit breaker untuk error bertubi-tubi
+- FIX #5: Track errors by category (AI, MT5, DB, Network)
+- FIX #20: Exponential backoff untuk recovery
 """
 import sqlite3
 from datetime import datetime, date, timedelta
@@ -27,6 +29,19 @@ class RiskManager:
         self.is_hibernating = False
         self.daily_initial_equity: Optional[float] = None
         self.today_trades = 0
+        
+        # FIX #5: Error tracking by category
+        self.error_counts = {
+            "ai": 0,
+            "mt5": 0,
+            "db": 0,
+            "network": 0,
+            "other": 0
+        }
+        
+        # FIX #20: Exponential backoff
+        self.backoff_level = 0
+        self.last_error_time: Optional[datetime] = None
 
     def reset_daily_state(self, equity: float):
         """Reset state untuk hari baru"""
@@ -58,25 +73,46 @@ class RiskManager:
         dd = self.daily_initial_equity - current_equity
         return max(0.0, dd)
 
-    def register_error(self):
-        """Tambah counter error bertubi-tubi"""
+    def register_error(self, error_type: str = "other"):
+        """
+        FIX #5: Track errors by category (ai, mt5, db, network, other)
+        FIX #20: Exponential backoff untuk recovery
+        """
+        if error_type in self.error_counts:
+            self.error_counts[error_type] += 1
+        else:
+            self.error_counts["other"] += 1
+        
         self.consecutive_errors += 1
+        self.last_error_time = datetime.now()
+        
         if self.consecutive_errors >= self.circuit_breaker_max:
             self._activate_circuit_breaker()
 
     def register_success(self):
         """Reset counter error setelah sukses"""
         self.consecutive_errors = 0
+        self.error_counts = {k: 0 for k in self.error_counts}
+        self.backoff_level = 0
 
     def _activate_circuit_breaker(self):
-        """Aktifkan mode hibernasi karena terlalu banyak error"""
-        self.hibernate_until = datetime.now() + timedelta(
-            hours=self.circuit_breaker_sleep
-        )
+        """
+        FIX #20: Exponential backoff - 1min → 5min → 15min → 1hour
+        """
+        backoff_minutes = [1, 5, 15, 60]
+        self.backoff_level = min(self.backoff_level, len(backoff_minutes) - 1)
+        sleep_minutes = backoff_minutes[self.backoff_level]
+        
+        self.hibernate_until = datetime.now() + timedelta(minutes=sleep_minutes)
         self.is_hibernating = True
-        print(
-            f"[RISK] CIRCUIT BREAKER: Hibernate until {self.hibernate_until}"
-        )
+        
+        # Log error summary
+        error_summary = ", ".join([f"{k}: {v}" for k, v in self.error_counts.items() if v > 0])
+        print(f"[RISK] CIRCUIT BREAKER: Hibernate for {sleep_minutes} min (level {self.backoff_level + 1})")
+        print(f"[RISK] Error summary: {error_summary}")
+        print(f"[RISK] Resume at: {self.hibernate_until}")
+        
+        self.backoff_level += 1
 
     def check_circuit_breaker(self) -> bool:
         """Cek apakah circuit breaker masih aktif"""
