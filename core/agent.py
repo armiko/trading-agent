@@ -19,6 +19,8 @@ from core.risk import RiskManager
 from core.execution import ExecutionEngine
 from core.learning import LearningMemory
 from core.database import init_database
+from core.regime import RegimeClassifier, MarketRegime
+from core.news_filter import EconomicCalendar
 
 
 class TradingAgent:
@@ -77,6 +79,33 @@ class TradingAgent:
         # FIX #13: Signal expiry for assisted mode
         self.signal_timestamp: Optional[datetime] = None
         self.signal_expiry_minutes = 5
+
+        # ENHANCEMENT: Regime classifier
+        self.regime_enabled = self.config.get("regime_adaptive", False)
+        if self.regime_enabled:
+            self.regime_classifier = RegimeClassifier(
+                adx_trending_threshold=self.config.get("regime_adx_trending", 25.0),
+                adx_ranging_threshold=self.config.get("regime_adx_ranging", 20.0),
+            )
+            print("[AGENT] Regime classifier enabled")
+        else:
+            self.regime_classifier = None
+
+        # ENHANCEMENT: News filter
+        self.news_filter_enabled = self.config.get("news_filter_enabled", False)
+        if self.news_filter_enabled:
+            self.news_calendar = EconomicCalendar(
+                buffer_minutes=self.config.get("news_buffer_minutes", 30),
+                currencies=self.config.get("news_currencies", ["USD", "EUR"]),
+            )
+            print("[AGENT] News filter enabled")
+        else:
+            self.news_calendar = None
+
+        # ENHANCEMENT: Session filter
+        self.session_filter_enabled = self.config.get("session_filter_enabled", False)
+        self.allowed_sessions = self.config.get("allowed_sessions", ["London", "New York"])
+        self.avoid_sessions = self.config.get("avoid_sessions", ["Asia"])
 
     def save_tracked_positions(self):
         """FIX #4: Persist tracked positions to file"""

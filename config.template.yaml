@@ -1,0 +1,97 @@
+# Trading Agent Configuration Template
+# Copy this file to config.yaml and adjust values
+
+# === BASIC SETTINGS ===
+symbol: XAUUSD
+lot: 0.01  # Fixed lot size (will be overridden if dynamic_position_sizing enabled)
+mode: assisted  # assisted (manual approval) or auto (fully automated)
+
+# === RISK MANAGEMENT ===
+max_trades_per_day: 3
+confidence_threshold: 80  # Minimum AI confidence to execute (0-100)
+max_drawdown_percent: 5  # Daily drawdown limit (% of initial equity)
+spread_multiplier_limit: 0.3  # Max spread as % of ATR (0.3 = 30%)
+
+# === DYNAMIC POSITION SIZING (NEW) ===
+dynamic_position_sizing: false  # Enable dynamic lot calculation
+risk_per_trade_percent: 1.0  # Risk % of equity per trade (if dynamic enabled)
+max_lot_size: 0.05  # Maximum lot size limit
+min_lot_size: 0.01  # Minimum lot size limit
+
+# === ATR-BASED EXITS ===
+atr_sl_multiplier: 1.5  # Stop loss = entry ± (ATR × multiplier)
+atr_tp_multiplier: 2.5  # Take profit = entry ± (ATR × multiplier)
+atr_trailing_multiplier: 1.0  # Trailing stop distance
+breakeven_after_atr: 1.0  # Move SL to breakeven after profit > ATR × multiplier
+atr_minimum_points: 8  # Minimum ATR in points to allow trading
+
+# === TIME-BASED EXITS ===
+time_exit_minutes: 20  # Force close after N minutes
+time_exit_min_profit_atr: 0.5  # Minimum profit (as ATR multiplier) to avoid time exit
+
+# === CIRCUIT BREAKER ===
+circuit_breaker_max_errors: 3  # Max consecutive errors before hibernate
+circuit_breaker_sleep_hours: 1  # Hibernate duration in hours
+
+# === SESSION FILTER (NEW) ===
+session_filter_enabled: true  # Enable session-based trading
+allowed_sessions:
+  - London  # 09:00-17:00 (best for XAUUSD)
+  - "New York"  # 17:00-21:00
+avoid_sessions:
+  - Asia  # 00:00-09:00 (typically low volume for XAUUSD)
+
+# === NEWS FILTER (NEW) ===
+news_filter_enabled: true  # Enable economic calendar filter
+news_buffer_minutes: 30  # Avoid trading N minutes before/after high-impact news
+news_currencies:
+  - USD  # Monitor USD news (affects XAUUSD)
+  - EUR  # Monitor EUR news
+news_cache_hours: 6  # Cache news data for N hours
+
+# === MARKET REGIME (NEW) ===
+regime_adaptive: true  # Adjust parameters based on market regime
+regime_adx_trending: 25.0  # ADX threshold for trending market
+regime_adx_ranging: 20.0  # ADX threshold for ranging market
+
+# === LEARNING MEMORY ===
+learning_loss_count: 3  # Number of recent losses to include in memory
+learning_win_count: 2  # Number of recent wins to include in memory
+
+# === MT5 EXECUTION ===
+magic_number: 99999  # Unique identifier (auto-generated if default)
+max_deviation: 10  # Max slippage in points
+
+# === DATABASE ===
+db_path: db/sqlite.db
+
+# === AI PROVIDER (9Router) ===
+provider: ninerouter  # Single provider: ninerouter
+model: auto  # Model name or 'auto' for auto-routing
+ninerouter_url: http://localhost:20128/v1
+ninerouter_api_key: null  # Optional API key
+
+# === ADVANCED AI SETTINGS (NEW) ===
+ai_chain_of_thought: true  # Enable structured reasoning in prompts
+ai_include_regime: true  # Include regime classification in context
+ai_reasoning_steps: true  # Request step-by-step analysis from AI
+
+# === BACKTESTING (NEW) ===
+backtest_spread_points: 10  # Simulated spread for backtesting
+backtest_slippage_points: 2  # Simulated slippage
+backtest_commission_per_lot: 0.0  # Commission per lot (both sides)
+
+# === LOGGING & MONITORING ===
+log_level: INFO  # DEBUG, INFO, WARNING, ERROR
+log_ai_reasoning: true  # Log AI reasoning steps
+log_regime_changes: true  # Log market regime transitions
+
+# === PERFORMANCE TRACKING ===
+track_provider_stats: true  # Track AI provider performance
+track_regime_performance: true  # Track performance by regime
+
+# === NOTES ===
+# - Use 'python trade.py setup' for interactive configuration
+# - Restart bot after config changes
+# - Test with assisted mode before enabling auto mode
+# - Monitor drawdown and adjust risk parameters accordingly
