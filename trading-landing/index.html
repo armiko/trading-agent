@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Trading Agent - Intelligent Automated Trading System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 100px 0;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 1.3rem;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 15px 40px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        /* Features Section */
+        .features {
+            padding: 80px 0;
+            background: white;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 60px;
+            color: #333;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+        }
+
+        .feature-card {
+            background: #f9f9f9;
+            padding: 30px;
+            border-radius: 10px;
+            transition: transform 0.3s, box-shadow 0.3s;
+            border-left: 4px solid #667eea;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .feature-card p {
+            color: #666;
+            line-height: 1.8;
+        }
+
+        /* Tech Stack */
+        .tech-stack {
+            padding: 80px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .tech-item {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .tech-item h4 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        /* Architecture */
+        .architecture {
+            padding: 80px 0;
+            background: white;
+        }
+
+        .architecture-diagram {
+            background: #f9f9f9;
+            padding: 40px;
+            border-radius: 10px;
+            margin-top: 40px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+
+        .architecture-diagram pre {
+            color: #333;
+            line-height: 1.8;
+        }
+
+        /* Stats */
+        .stats {
+            padding: 80px 0;
+            background: #f9f9f9;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+            margin-top: 40px;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 30px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            font-size: 1.1rem;
+            color: #666;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            padding: 80px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+        }
+
+        .cta-section h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        .cta-section p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+
+        .github-button {
+            display: inline-block;
+            padding: 15px 40px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: transform 0.3s;
+        }
+
+        .github-button:hover {
+            transform: scale(1.05);
+        }
+
+        /* Footer */
+        footer {
+            background: #333;
+            color: white;
+            text-align: center;
+            padding: 30px 0;
+        }
+
+        footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2.5rem;
+            }
+
+            header p {
+                font-size: 1.1rem;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .features-grid,
+            .tech-grid,
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <h1>🤖 AI Trading Agent</h1>
+            <p>Intelligent Automated Trading System with Advanced AI & Risk Management</p>
+            <a href="#features" class="cta-button">Explore Features</a>
+        </div>
+    </header>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="container">
+            <h2 class="section-title">Advanced Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🧠</div>
+                    <h3>AI Decision Engine</h3>
+                    <p>Powered by 60+ AI models via 9Router with automatic fallback. Uses GPT-4, Claude, and local LLMs for intelligent trading decisions with self-reflection and learning memory.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Dynamic Position Sizing</h3>
+                    <p>Kelly Criterion + Volatility-based lot calculation. Automatically adjusts position size based on win rate, ATR, and account equity for optimal risk management.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>DXY Correlation Tracking</h3>
+                    <p>Monitor Gold-Dollar correlation in real-time. Detects divergence patterns and blocks trades during anomalous market conditions for fundamental confirmation.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🛡️</div>
+                    <h3>Advanced Risk Management</h3>
+                    <p>Multi-layer protection: drawdown limits, confidence thresholds, circuit breakers, directional conflict detection, and spread validation.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📈</div>
+                    <h3>Trailing Stop Manager</h3>
+                    <p>ATR-based adaptive trailing stop with breakeven automation. Locks profit at 2R, aggressive trail at 3R, and dynamic spread-aware breakeven.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🔍</div>
+                    <h3>Performance Tracker</h3>
+                    <p>Real-time monitoring vs backtest expectations. Alerts on win rate deviation, profit factor drops, and excessive drawdown with statistical significance checks.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🗳️</div>
+                    <h3>AI Ensemble Voting</h3>
+                    <p>Multiple AI models vote on each decision. Reduces hallucination and bias through majority consensus with configurable agreement threshold.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📚</div>
+                    <h3>Learning Memory</h3>
+                    <p>Self-reflection after every trade. AI learns from wins and losses, building a weighted memory of market patterns and trading lessons.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <h3>Enhanced Technical Analysis</h3>
+                    <p>Support/Resistance detection, Price Action patterns (HH/HL, LH/LL), Market Structure analysis, and multi-timeframe trend confirmation.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tech Stack -->
+    <section class="tech-stack">
+        <div class="container">
+            <h2 class="section-title">Technology Stack</h2>
+            <div class="tech-grid">
+                <div class="tech-item">
+                    <h4>🐍 Python 3.10+</h4>
+                    <p>Core Language</p>
+                </div>
+                <div class="tech-item">
+                    <h4>📊 MetaTrader 5</h4>
+                    <p>Trading Platform</p>
+                </div>
+                <div class="tech-item">
+                    <h4>🤖 9Router</h4>
+                    <p>AI Provider (60+ models)</p>
+                </div>
+                <div class="tech-item">
+                    <h4>🗄️ SQLite</h4>
+                    <p>Database</p>
+                </div>
+                <div class="tech-item">
+                    <h4>🖥️ Textual</h4>
+                    <p>TUI Framework</p>
+                </div>
+                <div class="tech-item">
+                    <h4>📈 pandas_ta</h4>
+                    <p>Technical Indicators</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture -->
+    <section class="architecture">
+        <div class="container">
+            <h2 class="section-title">System Architecture</h2>
+            <div class="architecture-diagram">
+                <pre>
+┌─────────────────────────────────────────────────────────────┐
+│                    CLI / TUI Interface                       │
+│  (trade.py, cli/start.py, cli/status.py, cli/models.py)    │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    Core Engine                               │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │  Market     │  │   AI        │  │   Risk      │          │
+│  │  Data       │  │   Decision  │  │   Manager   │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │ Execution   │  │ Learning    │  │ Regime      │          │
+│  │ Engine      │  │ Memory      │  │ Classifier  │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+│                                                              │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
+│  │   DXY    │  │ Position │  │ Trailing │  │Performance│  │
+│  │Correlation│ │  Sizer   │  │   Stop   │  │  Tracker │   │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                            ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    External Services                         │
+│  MetaTrader 5 ←→ 9Router (AI) ←→ SQLite Database           │
+└─────────────────────────────────────────────────────────────┘
+                </pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats">
+        <div class="container">
+            <h2 class="section-title">System Capabilities</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">60+</div>
+                    <div class="stat-label">AI Models Available</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">7</div>
+                    <div class="stat-label">Trading Phases</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">15+</div>
+                    <div class="stat-label">Technical Indicators</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">3-Tier</div>
+                    <div class="stat-label">AI Fallback System</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <h2>Ready to Get Started?</h2>
+            <p>Open source, fully documented, and ready to deploy</p>
+            <a href="https://github.com/armiko/trading-agent" class="github-button" target="_blank">View on GitHub →</a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>&copy; 2024 AI Trading Agent. Open Source Project.</p>
+            <p>Built with ❤️ using Python, MetaTrader 5, and 9Router</p>
+            <p><a href="https://github.com/armiko/trading-agent" target="_blank">GitHub</a> | <a href="https://github.com/armiko/trading-agent/blob/main/docs/01-overview.md" target="_blank">Documentation</a></p>
+        </div>
+    </footer>
+</body>
+</html>
