@@ -906,17 +906,6 @@ conn.close()
 
 ---
 
-## 📞 Support & Feedback
-
-Jika menemukan bug atau punya saran:
-1. Cek log di TUI panel
-2. Cek `db/sqlite.db` untuk detail error
-3. Review `config.yaml` untuk konfigurasi
-
-Happy Trading! 🚀
-
----
-
 ## 🌐 Setup 9Router (Recommended)
 
 ### Apa itu 9Router?
@@ -929,15 +918,6 @@ Happy Trading! 🚀
 - ✅ **Zero downtime** - auto-switch saat quota habis
 - ✅ **Free tier tersedia** - Kiro, iFlow, Qwen, OpenCode
 
-### Keunggulan vs 9Router
-
-| Fitur | 9Router | 9Router |
-|---|---|---|
-| Providers | 1 (local) | 60+ |
-| Fallback | ❌ | ✅ 3-tier |
-| Token savings | ❌ | ✅ RTK & Caveman |
-| Free tier | Limited | ✅ Kiro, iFlow, Qwen |
-| Setup | Simple | Simple |
 
 ### Setup 9Router (2 Command)
 
