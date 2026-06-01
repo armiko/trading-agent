@@ -22,6 +22,13 @@ from core.database import init_database
 from core.regime import RegimeClassifier, MarketRegime
 from core.news_filter import EconomicCalendar
 
+# NEW INTEGRATIONS
+from core.correlation import CurrencyCorrelation
+from core.position_sizer import PositionSizer
+from core.trailing_stop import TrailingStopManager
+from core.performance_tracker import LivePerformanceTracker
+from core.ai_ensemble import AIEnsemble
+
 
 class TradingAgent:
     """
@@ -106,6 +113,49 @@ class TradingAgent:
         self.session_filter_enabled = self.config.get("session_filter_enabled", False)
         self.allowed_sessions = self.config.get("allowed_sessions", ["London", "New York"])
         self.avoid_sessions = self.config.get("avoid_sessions", ["Asia"])
+
+        # NEW INTEGRATIONS
+        # DXY Correlation tracker
+        self.dxy_enabled = self.config.get("dxy_correlation_enabled", False)
+        if self.dxy_enabled:
+            self.dxy_correlation = CurrencyCorrelation(symbol=self.config.get("symbol", "XAUUSD"))
+            print("[AGENT] DXY correlation tracking enabled")
+        else:
+            self.dxy_correlation = None
+
+        # Position Sizer
+        self.position_sizer = PositionSizer(self.config)
+        print("[AGENT] Position sizer initialized")
+
+        # Trailing Stop Manager
+        self.trailing_stop = TrailingStopManager(
+            atr_multiplier=self.config.get("atr_trailing_multiplier", 1.5),
+            breakeven_buffer=self.config.get("breakeven_buffer_atr", 0.2)
+        )
+        print("[AGENT] Trailing stop manager initialized")
+
+        # Performance Tracker
+        self.performance_tracker = LivePerformanceTracker(
+            db_path=self.config.get("db_path", "db/sqlite.db")
+        )
+        self.performance_tracker.load_state()
+        print("[AGENT] Performance tracker initialized")
+
+        # AI Ensemble (optional - use multiple models)
+        self.ensemble_enabled = self.config.get("ai_ensemble_enabled", False)
+        if self.ensemble_enabled:
+            secondary_models = self.config.get("ai_ensemble_models", [])
+            self.ai_ensemble = AIEnsemble(
+                primary_model=self.config.get("model", "auto"),
+                secondary_models=secondary_models,
+                db_path=self.config.get("db_path", "db/sqlite.db"),
+                ninerouter_url=self.config.get("ninerouter_url", "http://localhost:20128/v1"),
+                ninerouter_api_key=self.config.get("ninerouter_api_key"),
+                min_agreement=self.config.get("ai_ensemble_min_agreement", 2)
+            )
+            print("[AGENT] AI Ensemble enabled")
+        else:
+            self.ai_ensemble = None
 
     def save_tracked_positions(self):
         """FIX #4: Persist tracked positions to file"""
@@ -260,6 +310,9 @@ class TradingAgent:
 
             # FIX 5: Increment counter saat position close, bukan saat open
             self.risk.today_trades += 1
+            
+            # NEW: Update performance tracker
+            self.performance_tracker.record_trade(pos["profit"], self.current_equity)
 
             print(f"[AGENT] Fase 7 complete for ticket {pos['ticket']}: {result} {pos['profit']:.2f} USC")
             print(f"[AGENT] Lesson learned: {lesson}")
@@ -281,10 +334,25 @@ class TradingAgent:
             if account:
                 self.current_equity = account.equity
                 self.daily_pnl = account.profit
+                # Update performance tracker
+                if self.performance_tracker.starting_equity is None:
+                    self.performance_tracker.start_tracking(account.equity)
+                self.performance_tracker.record_trade(0, account.equity)  # Just update equity
 
         # FIX 4: Always get context (tidak skip meskipun ada posisi)
         context = await self.market.get_context()
         self.last_context = context
+        
+        # NEW: Enhance context with DXY correlation data
+        if self.dxy_enabled and self.dxy_correlation:
+            df_dxy = await self.dxy_correlation.fetch_dxy_data()
+            df_gold = self.market._cache_m5
+            if df_dxy is not None and df_gold is not None:
+                dxy_signal = self.dxy_correlation.get_correlation_signal(df_gold, df_dxy)
+                context["dxy_signal"] = dxy_signal
+                # Print DXY warning for divergence
+                if dxy_signal.get("divergence", "NONE") != "NONE":
+                    print(f"[AGENT] DXY Divergence: {dxy_signal['divergence']} - {dxy_signal['signal_bias']}")
 
         # Cek spread
         spread_ok = await self.market.is_spread_acceptable()
@@ -303,8 +371,12 @@ class TradingAgent:
             await self.executor.monitor_positions(self.market.current_atr)
             return  # Skip AI decision jika masih ada posisi
 
-        # Fase 3: AI Decision
-        decision = await self.ai.decide(context)
+        # Fase 3: AI Decision (dengan opsi Ensemble)
+        if self.ensemble_enabled and self.ai_ensemble:
+            decision = await self.ai_ensemble.decide_ensemble(context)
+            print(f"[AGENT] Ensemble Decision: {decision['action']} ({decision.get('ensemble_agreement', 100)}% agreement)")
+        else:
+            decision = await self.ai.decide(context)
         self.last_decision = decision
 
         print(f"[AGENT] AI Decision: {decision['action']} (conf: {decision['confidence']}%) - {decision['reason']}")
@@ -324,6 +396,27 @@ class TradingAgent:
         if not validation["allowed"]:
             print(f"[AGENT] Risk blocked: {validation['reason']}")
             return
+        
+        # NEW: DXY correlation risk check
+        dxy_signal = context.get("dxy_signal", {})
+        if dxy_signal.get("signal_bias") == "AVOID_BUY" and decision["action"] == "BUY":
+            print(f"[AGENT] DXY Correlation blocked BUY: {dxy_signal.get('divergence', 'NONE')}")
+            self.risk.register_success()
+            return
+        if dxy_signal.get("signal_bias") == "AVOID_SELL" and decision["action"] == "SELL":
+            print(f"[AGENT] DXY Correlation blocked SELL: {dxy_signal.get('divergence', 'NONE')}")
+            self.risk.register_success()
+            return
+        
+        # NEW: Calculate optimal lot size using position sizer
+        optimal_lot = self.position_sizer.calculate_optimal_lot(
+            equity=self.current_equity,
+            atr=self.market.current_atr,
+            win_rate=self.performance_tracker.get_metrics().get("win_rate", 50) / 100,
+            avg_win=self.performance_tracker.get_metrics().get("avg_win", 50),
+            avg_loss=self.performance_tracker.get_metrics().get("avg_loss", 30),
+        )
+        print(f"[AGENT] Position sizing: lot={optimal_lot} (from base={self.config.get('lot', 0.01)})")
 
         # Fase 5: Execution
         if self.mode == "assisted":

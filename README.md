@@ -11,9 +11,21 @@ Dokumen ini merangkum arsitektur **Minimum Viable Product (MVP)** untuk AI Tradi
 
 ```
 CLI / TUI (Textual/Rich)  →  Core Engine (Market, Risk, Flow)  →  9Router & MT5  →  SQLite
+                                      ↓
+                    Advanced Features: DXY Correlation, Position Sizer,
+                    Trailing Stop, Performance Tracker, AI Ensemble
 ```
 
 Semua komponen berjalan **murni lokal** di VM Proxmox Windows untuk meminimalisir latensi.
+
+### 🚀 Fitur Advanced (NEW)
+
+1. **DXY Correlation Tracking** - Monitor korelasi XAUUSD dengan Dollar Index untuk konfirmasi fundamental
+2. **Dynamic Position Sizing** - Kelly Criterion + Volatility-based lot sizing untuk risk management optimal
+3. **Trailing Stop Manager** - ATR-based trailing stop dengan breakeven automation
+4. **Live Performance Tracker** - Real-time monitoring dengan deviation alert vs backtest
+5. **AI Ensemble Voting** - Multiple AI models dengan majority voting untuk mengurangi hallucination
+6. **Enhanced Technical Analysis** - Support/Resistance detection, Price Action patterns, Market Structure analysis
 
 ---
 
@@ -87,6 +99,34 @@ time_exit_min_profit_atr: 0.5
 magic_number: 99999
 max_deviation: 10
 db_path: db/sqlite.db
+
+# ADVANCED FEATURES
+
+## DXY Correlation (NEW)
+dxy_correlation_enabled: true  # Enable DXY tracking untuk XAUUSD
+
+## Position Sizing (NEW)
+risk_per_trade_pct: 1.0        # Risk 1% per trade
+kelly_fraction: 0.25          # Use 1/4 Kelly (conservative)
+max_lot: 0.5                  # Maximum lot cap
+min_lot: 0.01                 # Minimum lot floor
+
+## Trailing Stop (NEW)
+atr_trailing_multiplier: 1.5  # Trailing distance
+breakeven_buffer_atr: 0.2     # Buffer above/below entry
+
+## AI Ensemble (NEW)
+ai_ensemble_enabled: false    # Enable multiple AI models voting
+ai_ensemble_models:           # Models untuk voting
+  - "gpt-4"
+  - "claude-3"
+ai_ensemble_min_agreement: 2  # Minimal 2 models setuju
+
+## Performance Tracker (NEW)
+# Otomatis aktif, tidak perlu konfigurasi
+
+## Enhanced Indicators (NEW)
+# Otomatis aktif, tidak perlu konfigurasi
 ```
 
 ---
@@ -114,6 +154,206 @@ db_path: db/sqlite.db
 | `market_context` | TEXT | JSON kondisi teknikal |
 | `result` | VARCHAR | WIN / LOSS |
 | `lesson` | TEXT | Kesimpulan AI, contoh: *"RSI 70 di sesi London sering false breakout"* |
+
+---
+
+## 🎯 Advanced Features Documentation
+
+### 1. DXY Correlation Tracking
+
+**Mengapa Penting?**
+Gold (XAUUSD) memiliki korelasi negatif kuat (-0.85) dengan US Dollar Index (DXY). Trading gold tanpa mempertimbangkan DXY seperti trading buta.
+
+**Cara Kerja:**
+- Fetch data DXY dari MT5 (atau gunakan proxy EURUSD/GBPUSD jika DXY tidak tersedia)
+- Hitung korelasi 20-period antara Gold dan DXY
+- Deteksi divergence: Gold naik + DXY naik = anomali (AVOID_BUY)
+- Konfirmasi normal: Gold naik + DXY turun = CONFIRM_BUY
+
+**Konfigurasi:**
+```yaml
+dxy_correlation_enabled: true  # Enable DXY tracking
+```
+
+**Output di Log:**
+```
+[AGENT] DXY Divergence: BULLISH_DIVERGENCE - AVOID_BUY
+[AGENT] DXY Correlation blocked BUY: BULLISH_DIVERGENCE
+```
+
+### 2. Dynamic Position Sizing
+
+**Mengapa Penting?**
+Fixed lot size (0.01) tidak optimal. Saat volatilitas tinggi, risiko meningkat. Saat win rate bagus, kita bisa size up.
+
+**Metode:**
+
+**A. Kelly Criterion (Edge-based)**
+```
+f* = (p × b - q) / b
+di mana:
+  p = win rate
+  q = 1 - p
+  b = avg_win / avg_loss
+```
+
+**B. Volatility-based (ATR)**
+```
+Lot = Risk Amount / (SL Points × Point Value)
+SL Points = ATR × SL Multiplier
+```
+
+**C. Conservative Blend**
+Sistem menggunakan **lot terkecil** antara Kelly dan Volatility untuk keamanan maksimal.
+
+**Konfigurasi:**
+```yaml
+risk_per_trade_pct: 1.0      # 1% equity per trade
+kelly_fraction: 0.25          # Use 1/4 Kelly (conservative)
+max_lot: 0.5                  # Maximum lot cap
+min_lot: 0.01                 # Minimum lot floor
+```
+
+**Output di Log:**
+```
+[AGENT] Position sizing: lot=0.02 (from base=0.01)
+```
+
+### 3. Trailing Stop Manager
+
+**Mengapa Penting?**
+Fixed SL/TP tidak optimal. Trailing stop melindungi profit saat trend berlanjut.
+
+**Fitur:**
+
+**A. Breakeven Move (Profit ≥ 1R)**
+```
+Jika profit ≥ 1× Risk:
+  SL → Entry + (ATR × 0.2)
+```
+
+**B. Profit Locking (Profit ≥ 2R)**
+```
+Jika profit ≥ 2× Risk:
+  SL → Current Price - (ATR × 1.5)
+```
+
+**C. Aggressive Trail (Profit ≥ 3R)**
+```
+Jika profit ≥ 3× Risk:
+  SL → Current Price - (ATR × 0.5)
+```
+
+**Konfigurasi:**
+```yaml
+atr_trailing_multiplier: 1.5   # Trailing distance
+breakeven_buffer_atr: 0.2      # Buffer above/below entry
+```
+
+**Output di Log:**
+```
+[EXEC] Breakeven activated for 12345 (offset: 5.0 points)
+[AGENT] Trailing stop updated to 2325.50
+```
+
+### 4. Live Performance Tracker
+
+**Mengapa Penting?**
+Backtest bisa bagus, tapi live trading bisa berbeda. Performance tracker mendeteksi deviation dan alert jika performa menyimpang.
+
+**Metrik yang Ditrack:**
+- Win rate (live vs backtest)
+- Profit factor (live vs backtest)
+- Maximum drawdown (live vs backtest)
+- Sample size (statistical significance)
+
+**Alert Conditions:**
+- Win rate deviation > 15% (dengan min 20 trades)
+- Profit factor < 70% dari backtest
+- Drawdown > 130% dari backtest max DD
+- Sample size < 30 trades (warning: insufficient data)
+
+**Konfigurasi:**
+Otomatis aktif, tidak perlu konfigurasi tambahan.
+
+**Output di Log:**
+```
+⚠️ Win rate deviation: live 45% vs backtest 60%
+🚨 Drawdown exceeded backtest: 8% vs 5%
+ℹ️ Sample size too small (15 trades). Need 30+ for statistical significance.
+```
+
+### 5. AI Ensemble Voting
+
+**Mengapa Penting?**
+Single AI model bisa hallucinate atau bias. Ensemble dengan voting mengurangi error rate.
+
+**Cara Kerja:**
+- Jalankan 2-3 AI models secara parallel
+- Hitung majority vote untuk action (BUY/SELL/HOLD)
+- Average confidence dari models yang setuju
+- Require minimum agreement (default: 2 models)
+
+**Konfigurasi:**
+```yaml
+ai_ensemble_enabled: true
+ai_ensemble_models:
+  - "gpt-4"
+  - "claude-3"
+ai_ensemble_min_agreement: 2  # Minimal 2 models setuju
+```
+
+**Output di Log:**
+```
+[AGENT] Ensemble Decision: BUY (67% agreement)
+[AGENT] Ensemble votes: {'BUY': 2, 'HOLD': 1}
+```
+
+### 6. Enhanced Technical Analysis
+
+**A. Support & Resistance Detection**
+- Deteksi swing highs/lows menggunakan pivot points
+- Clustering levels yang berdekatan (tolerance 0.1%)
+- Hitung jarak ke nearest support/resistance
+
+**B. Price Action Patterns**
+- HH/HL (Higher Highs, Higher Lows) = Bullish
+- LH/LL (Lower Highs, Lower Lows) = Bearish
+- Breakout detection (bullish/bearish)
+- Price position (NEAR_HIGH, NEAR_LOW, MIDDLE)
+
+**C. Market Structure Analysis**
+- Structure: BULLISH/BEARISH/NEUTRAL (based on EMA alignment)
+- Momentum: STRONG/WEAK/NEUTRAL (based on MACD + RSI)
+- Volatility: HIGH/NORMAL/LOW (based on ATR percentile)
+- Volume: INCREASING/DECREASING/STABLE
+
+**Konfigurasi:**
+Otomatis aktif, tidak perlu konfigurasi tambahan.
+
+**Output di Context AI:**
+```json
+{
+  "support_resistance": {
+    "nearest_support": 2315.50,
+    "nearest_resistance": 2325.80,
+    "dist_to_support_pct": 0.5,
+    "dist_to_resistance_pct": 0.3
+  },
+  "price_action": {
+    "pattern": "HH_HL",
+    "trend_strength": 75.0,
+    "breakout_signal": "BULLISH_BREAKOUT",
+    "price_position": "NEAR_HIGH"
+  },
+  "market_structure": {
+    "structure": "BULLISH",
+    "momentum": "STRONG",
+    "volatility": "NORMAL",
+    "volume_trend": "INCREASING"
+  }
+}
+```
 
 ---
 
