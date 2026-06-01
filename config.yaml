@@ -1,0 +1,30 @@
+symbol: XAUUSD
+lot: 0.01
+
+# AI Provider: ollama / ninerouter
+provider: ninerouter
+model: auto
+
+# 9Router Settings (jika provider = ninerouter)
+ninerouter_url: http://localhost:20128/v1
+ninerouter_api_key: null
+
+# Ollama Settings (jika provider = ollama)
+ollama_url: http://localhost:11434
+
+mode: assisted
+max_trades_per_day: 3
+confidence_threshold: 80
+max_drawdown_percent: 5
+spread_multiplier_limit: 0.3
+circuit_breaker_max_errors: 3
+circuit_breaker_sleep_hours: 1
+atr_sl_multiplier: 1.5
+atr_tp_multiplier: 2.5
+atr_trailing_multiplier: 1.0
+breakeven_after_atr: 1.0
+time_exit_minutes: 20
+time_exit_min_profit_atr: 0.5
+magic_number: 99999
+max_deviation: 10
+db_path: db/sqlite.db
