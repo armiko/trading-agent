@@ -51,6 +51,7 @@ class TradingAgent:
             model=self.config.get("model", "auto"),
             db_path=self.config.get("db_path", "db/sqlite.db"),
             ninerouter_url=self.config.get("ninerouter_url", "http://localhost:20128/v1"),
+            ninerouter_api_key=self.config.get("ninerouter_api_key"),
         )
         self.risk = RiskManager(self.config)
         self.executor = ExecutionEngine(self.config)

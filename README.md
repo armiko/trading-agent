@@ -275,8 +275,8 @@ npm install -g 9router
 - Install 9Router dari [https://9router.com](https://9router.com)
 - Jalankan 9Router server & pull model:
 ```bash
-ollama serve
-ollama pull qwen3:8b   # atau model lain sesuai config
+9router
+# Model akan di-route otomatis oleh 9Router   # atau model lain sesuai config
 ```
 
 ---
@@ -323,8 +323,8 @@ ollama pull qwen3:8b   # atau model lain sesuai config
    9router
    
    # Option B: 9Router (local LLM)
-   ollama serve
-   ollama pull qwen3:8b
+   9router
+   # Model akan di-route otomatis oleh 9Router
    ```
 
 3. **Interactive Setup Wizard**
@@ -378,12 +378,12 @@ pip install -r requirements.txt
 #### B. Setup 9Router (Local LLM)
 ```bash
 # Cek apakah 9Router sudah terinstall
-ollama --version
+9router --version
 
 # Jika belum, install dari https://9router.com
 
 # Pull model yang akan digunakan
-ollama pull qwen3:8b
+# Model akan di-route otomatis oleh 9Router
 ollama pull mimo:latest
 ```
 
@@ -442,10 +442,10 @@ max_deviation: 10
 db_path: db/sqlite.db
 
 # AI Provider
-provider: ninerouter    # ninerouter / ollama
+provider: ninerouter    # single provider (9Router)
 model: auto              # model spesifik atau auto-route
 ninerouter_url: http://localhost:20128/v1
-ollama_url: http://localhost:11434
+# ollama_url: http://localhost:11434   # (deprecated, use 9Router)
 ```
 
 **Penjelasan Parameter Penting:**
@@ -552,7 +552,7 @@ conn.close()
 | Masalah | Solusi |
 |---|---|
 | MT5 not connected | 1. Pastikan MT5 terbuka dan login<br>2. Cek "Allow automated trading" di Tools → Options<br>3. Restart MT5 |
-| 9Router not available | 1. Jalankan `ollama serve`<br>2. Cek `ollama list` untuk model tersedia<br>3. Pull model: `ollama pull qwen3:8b` |
+| 9Router not available | 1. Install: `npm install -g 9router`<br>2. Jalankan: `9router`<br>3. Buka dashboard di browser untuk connect providers |
 | Spread too high | Bot otomatis skip. Tunggu spread menurun atau cek broker |
 | Drawdown limit reached | Bot masuk mode HIBERNATE. Tunggu besok atau reset equity awal |
 | Circuit breaker active | Bot sleep 1 jam. Tunggu atau restart manual |

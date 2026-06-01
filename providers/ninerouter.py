@@ -64,8 +64,10 @@ class NineRouterClient:
         """Cek apakah 9router server hidup"""
         try:
             async with aiohttp.ClientSession() as session:
+                # Try /v1/models endpoint (OpenAI-compatible)
                 async with session.get(
-                    self.base_url.replace("/v1", "/health"),
+                    f"{self.base_url}/models",
+                    headers={"Authorization": f"Bearer {self.api_key}"},
                     timeout=aiohttp.ClientTimeout(total=3),
                 ) as resp:
                     return resp.status == 200

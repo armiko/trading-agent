@@ -20,7 +20,7 @@ def print_usage():
     print("  setup        Interactive setup wizard")
     print("  config       Tampilkan/edit konfigurasi saat ini")
     print("  status       Cek koneksi MT5 & balance")
-    print("  models       List AI providers (9Router & Ollama)")
+    print("  models       List AI provider (9Router)")
     print("  start        Start TUI (assisted mode)")
     print("  run          Run headless (auto mode)")
 
@@ -52,9 +52,12 @@ def validate_config(config: dict) -> list:
     if dd <= 0 or dd > 100:
         warnings.append(f"max_drawdown_percent must be 1-100, got {dd}")
     
-    # Provider validation
-    if config.get("provider") not in ["ninerouter"]:
-        warnings.append(f"provider must be 'ninerouter', got {config.get('provider')}")
+    # Provider validation with migration support
+    provider = config.get("provider")
+    if provider == "ollama":
+        warnings.append("⚠️  provider 'ollama' is deprecated. Please update to 'ninerouter'. Ollama can still be used via 9Router.")
+    elif provider not in ["ninerouter", "ollama"]:
+        warnings.append(f"provider must be 'ninerouter', got {provider}")
     
     return warnings
 
