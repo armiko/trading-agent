@@ -4,7 +4,7 @@
 
 ## 🎯 Apa Ini?
 
-**AI Trading Agent** = Bot trading otomatis yang menggunakan AI (LLM) untuk analisis teknikal XAUUSD (Gold) dan generate sinyal BUY/SELL/HOLD.
+**Xerynq** = Bot trading otomatis yang menggunakan AI (LLM) untuk analisis teknikal XAUUSD (Gold) dan generate sinyal BUY/SELL/HOLD.
 
 ## 🏗️ Struktur Project (Simplified)
 

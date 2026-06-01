@@ -1,8 +1,8 @@
-# AI Trading Agent - Overview
+# Xerynq - Overview
 
 ## 🎯 Tujuan Proyek
 
-AI Trading Agent adalah sistem trading otomatis berbasis terminal yang menggunakan AI (Large Language Model) untuk menganalisis pasar XAUUSD (Gold) dan menghasilkan sinyal trading. Sistem ini dirancang untuk berjalan **lokal** di VM Proxmox Windows dengan akses ke MetaTrader 5.
+Xerynq adalah sistem trading otomatis berbasis terminal yang menggunakan AI (Large Language Model) untuk menganalisis pasar XAUUSD (Gold) dan menghasilkan sinyal trading. Sistem ini dirancang untuk berjalan **lokal** di VM Proxmox Windows dengan akses ke MetaTrader 5.
 
 ## 🏗️ Arsitektur Utama
 

@@ -1,6 +1,6 @@
-# 🤖 AI Trading Agent — MVP (TUI & CLI Edition)
+# 🤖 Xerynq — MVP (TUI & CLI Edition)
 
-Dokumen ini merangkum arsitektur **Minimum Viable Product (MVP)** untuk AI Trading Agent berbasis terminal. Fokus utama fase ini adalah membangun integrasi Core Engine, manajemen risiko, dan sistem pembelajaran (Learning Memory) melalui Terminal UI (TUI) yang ringan namun interaktif.
+Dokumen ini merangkum arsitektur **Minimum Viable Product (MVP)** untuk Xerynq berbasis terminal. Fokus utama fase ini adalah membangun integrasi Core Engine, manajemen risiko, dan sistem pembelajaran (Learning Memory) melalui Terminal UI (TUI) yang ringan namun interaktif.
 
 > **Stack:** Python · MetaTrader 5 · 9Router (60+ AI providers) · SQLite · Textual/Rich TUI  
 > **Server:** VM Proxmox Windows (akses via SSH dari MacBook)

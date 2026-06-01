@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🤖 AI Trading Agent - Setup Script"
+echo "🤖 Xerynq - Setup Script"
 echo "==================================="
 echo ""
 

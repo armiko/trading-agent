@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup Wizard untuk AI Trading Agent.
+Setup Wizard untuk Xerynq.
 Interactive configuration untuk parameter trading.
 """
 import yaml
@@ -9,7 +9,7 @@ import os
 
 def print_header():
     print("\n" + "="*60)
-    print("🤖 AI TRADING AGENT - SETUP WIZARD")
+    print("🤖 XERYNQ - SETUP WIZARD")
     print("="*60 + "\n")
 
 
