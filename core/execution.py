@@ -25,6 +25,13 @@ class ExecutionEngine:
         self.time_exit_profit_atr = config.get("time_exit_min_profit_atr", 0.5)
         self.spread_multiplier_limit = config.get("spread_multiplier_limit", 0.3)
         self.atr_minimum = config.get("atr_minimum_points", 8)  # FIX #11
+        
+        # NEW: Trailing stop manager (optional)
+        self.trailing_stop = None
+    
+    def set_trailing_stop_manager(self, trailing_stop):
+        """Set trailing stop manager dari agent"""
+        self.trailing_stop = trailing_stop
 
     def _get_point_value(self) -> float:
         """Dapatkan nilai 1 point untuk symbol"""
@@ -50,12 +57,13 @@ class ExecutionEngine:
         return (round(sl, 5), round(tp, 5))
 
     async def send_order(
-        self, action: str, atr: float, reason: str = ""
+        self, action: str, atr: float, reason: str = "", lot: Optional[float] = None
     ) -> Optional[int]:
         """
         Kirim order ke MT5.
         FIX #3: Re-check spread sebelum order_send()
         FIX #11: Validate ATR minimum threshold
+        NEW: Accept optional lot parameter for dynamic position sizing
         Return ticket number jika sukses, None jika gagal.
         """
         if not mt5.terminal_info():
@@ -85,11 +93,14 @@ class ExecutionEngine:
         price = tick.ask if action == "BUY" else tick.bid
 
         sl, tp = self._calculate_sl_tp(action, price, atr)
+        
+        # Use provided lot or fallback to config lot
+        volume = lot if lot is not None else self.lot
 
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": self.symbol,
-            "volume": self.lot,
+            "volume": volume,
             "type": order_type,
             "price": price,
             "sl": sl,
@@ -111,7 +122,7 @@ class ExecutionEngine:
             return None
 
         print(
-            f"[EXEC] Order sent: {action} {self.symbol} @ {price} | SL: {sl} | TP: {tp} | Ticket: {result.order}"
+            f"[EXEC] Order sent: {action} {self.symbol} @ {price} | Lot: {volume} | SL: {sl} | TP: {tp} | Ticket: {result.order}"
         )
         return result.order
 
@@ -216,6 +227,23 @@ class ExecutionEngine:
                         if new_sl < pos.sl:
                             await self.modify_position(pos.ticket, new_sl, pos.tp)
                             print(f"[EXEC] Breakeven activated for {pos.ticket} (offset: {breakeven_offset/point:.1f} points)")
+            
+            # NEW: Trailing stop logic (if manager is set)
+            if self.trailing_stop:
+                position_data = {
+                    "entry_price": pos.price_open,
+                    "sl": pos.sl,
+                    "tp": pos.tp,
+                    "direction": "BUY" if pos.type == mt5.ORDER_TYPE_BUY else "SELL"
+                }
+                new_sl = self.trailing_stop.update_trailing_stop(
+                    position=position_data,
+                    current_price=current_price,
+                    current_atr=atr
+                )
+                if new_sl:
+                    await self.modify_position(pos.ticket, new_sl, pos.tp)
+                    print(f"[EXEC] Trailing stop updated for {pos.ticket}: SL {pos.sl:.5f} -> {new_sl:.5f}")
 
             # FIX #8: Time-based exit dengan rules untuk profit dan loss
             open_time = datetime.fromtimestamp(pos.time)

@@ -133,6 +133,9 @@ class TradingAgent:
             breakeven_buffer=self.config.get("breakeven_buffer_atr", 0.2)
         )
         print("[AGENT] Trailing stop manager initialized")
+        
+        # Connect trailing stop to executor
+        self.executor.set_trailing_stop_manager(self.trailing_stop)
 
         # Performance Tracker
         self.performance_tracker = LivePerformanceTracker(
@@ -334,10 +337,9 @@ class TradingAgent:
             if account:
                 self.current_equity = account.equity
                 self.daily_pnl = account.profit
-                # Update performance tracker
+                # Initialize performance tracker if needed
                 if self.performance_tracker.starting_equity is None:
                     self.performance_tracker.start_tracking(account.equity)
-                self.performance_tracker.record_trade(0, account.equity)  # Just update equity
 
         # FIX 4: Always get context (tidak skip meskipun ada posisi)
         context = await self.market.get_context()
@@ -413,23 +415,30 @@ class TradingAgent:
             equity=self.current_equity,
             atr=self.market.current_atr,
             win_rate=self.performance_tracker.get_metrics().get("win_rate", 50) / 100,
-            avg_win=self.performance_tracker.get_metrics().get("avg_win", 50),
-            avg_loss=self.performance_tracker.get_metrics().get("avg_loss", 30),
+            avg_win=self.performance_tracker.get_metrics().get("total_profit", 50) / max(self.performance_tracker.get_metrics().get("wins", 1), 1),
+            avg_loss=self.performance_tracker.get_metrics().get("total_loss", 30) / max(self.performance_tracker.get_metrics().get("losses", 1), 1),
         )
         print(f"[AGENT] Position sizing: lot={optimal_lot} (from base={self.config.get('lot', 0.01)})")
+        
+        # Update config lot untuk digunakan oleh executor
+        self.config["lot"] = optimal_lot
 
         # Fase 5: Execution
         if self.mode == "assisted":
-            print(f"[AGENT] SIGNAL: {decision['action']} | Conf: {decision['confidence']}% | Reason: {decision['reason']}")
+            print(f"[AGENT] SIGNAL: {decision['action']} | Conf: {decision['confidence']}% | Lot: {optimal_lot} | Reason: {decision['reason']}")
             # FIX #13: Simpan timestamp untuk signal expiry
             self.signal_timestamp = datetime.now()
+            # Simpan optimal_lot di decision untuk digunakan saat approve
+            decision["optimal_lot"] = optimal_lot
+            self.last_decision = decision
             return  # TUI akan handle konfirmasi
 
-        # Auto mode: langsung eksekusi
+        # Auto mode: langsung eksekusi (gunakan optimal_lot)
         ticket = await self.executor.send_order(
             action=decision["action"],
             atr=self.market.current_atr,
             reason=decision["reason"],
+            lot=optimal_lot
         )
 
         if ticket:
@@ -468,10 +477,13 @@ class TradingAgent:
                     return None
                 context = fresh_context
 
+        # Gunakan optimal_lot dari decision jika ada
+        lot_to_use = decision.get("optimal_lot", self.config.get("lot", 0.01))
         ticket = await self.executor.send_order(
             action=decision["action"],
             atr=self.market.current_atr,
             reason=decision["reason"],
+            lot=lot_to_use
         )
 
         if ticket:
