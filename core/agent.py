@@ -242,12 +242,14 @@ class TradingAgent:
     async def detect_closed_positions(self) -> list:
         """
         FIX 1: Deteksi posisi yang sudah close.
+        FIX 3: Handle partial close dengan volume comparison.
         Return list of closed position details.
         """
         if not self.tracked_positions:
             return []
 
         closed = []
+        modified = False
         current_open_tickets = {p.ticket for p in await self.executor.get_open_positions()}
 
         for ticket, tracking_data in list(self.tracked_positions.items()):
@@ -255,6 +257,42 @@ class TradingAgent:
                 deals = mt5.history_deals_get(position=ticket)
                 if deals and len(deals) >= 2:
                     open_deal = deals[0]
+
+                    # FIX 3: Check if fully closed by comparing entry vs exit volume
+                    entry_volume = sum(
+                        d.volume for d in deals
+                        if d.entry == mt5.DEAL_ENTRY_IN
+                    )
+                    exit_volume = sum(
+                        d.volume for d in deals
+                        if d.entry == mt5.DEAL_ENTRY_OUT
+                    )
+
+                    if exit_volume < entry_volume * 0.999:
+                        # Partial close detected — find continuation ticket
+                        new_positions = mt5.positions_get(symbol=self.executor.symbol)
+                        if new_positions:
+                            for p in new_positions:
+                                if (
+                                    p.magic == self.executor.magic
+                                    and p.ticket not in self.tracked_positions
+                                ):
+                                    self.tracked_positions[p.ticket] = tracking_data
+                                    print(
+                                        f"[AGENT] Partial close detected: {ticket} → "
+                                        f"remainder at {p.ticket} "
+                                        f"(exit {exit_volume:.2f}/{entry_volume:.2f})"
+                                    )
+                                    break
+                        del self.tracked_positions[ticket]
+                        modified = True
+                        continue
+
+                    # Fully closed — sum all exit deal profits
+                    total_profit = sum(
+                        d.profit for d in deals
+                        if d.entry == mt5.DEAL_ENTRY_OUT
+                    )
                     close_deal = deals[-1]
 
                     closed_info = {
@@ -262,7 +300,7 @@ class TradingAgent:
                         "type": "BUY" if open_deal.type == mt5.ORDER_TYPE_BUY else "SELL",
                         "entry_price": open_deal.price,
                         "close_price": close_deal.price,
-                        "profit": close_deal.profit,
+                        "profit": total_profit,
                         "open_time": datetime.fromtimestamp(open_deal.time),
                         "close_time": datetime.fromtimestamp(close_deal.time),
                         "decision": tracking_data["decision"],
@@ -271,9 +309,10 @@ class TradingAgent:
                     closed.append(closed_info)
 
                 del self.tracked_positions[ticket]
+                modified = True
 
-        # FIX #4: Save after removing closed positions
-        if closed:
+        # Save after any tracked position changes
+        if closed or modified:
             self.save_tracked_positions()
 
         return closed
@@ -344,6 +383,11 @@ class TradingAgent:
         # FIX 4: Always get context (tidak skip meskipun ada posisi)
         context = await self.market.get_context()
         self.last_context = context
+
+        # FIX 4b: Early return if market is closed
+        if context.get("reason") == "Market closed (weekend)":
+            print("[AGENT] Market closed (weekend). Skipping cycle.")
+            return
         
         # NEW: Enhance context with DXY correlation data
         if self.dxy_enabled and self.dxy_correlation:
@@ -400,14 +444,13 @@ class TradingAgent:
             return
         
         # NEW: DXY correlation risk check
+        # FIX 2: Do NOT call register_success() on block — consistent with risk validation
         dxy_signal = context.get("dxy_signal", {})
         if dxy_signal.get("signal_bias") == "AVOID_BUY" and decision["action"] == "BUY":
             print(f"[AGENT] DXY Correlation blocked BUY: {dxy_signal.get('divergence', 'NONE')}")
-            self.risk.register_success()
             return
         if dxy_signal.get("signal_bias") == "AVOID_SELL" and decision["action"] == "SELL":
             print(f"[AGENT] DXY Correlation blocked SELL: {dxy_signal.get('divergence', 'NONE')}")
-            self.risk.register_success()
             return
         
         # NEW: Calculate optimal lot size using position sizer

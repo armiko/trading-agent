@@ -12,11 +12,12 @@ confidence_threshold: 80  # Minimum AI confidence to execute (0-100)
 max_drawdown_percent: 5  # Daily drawdown limit (% of initial equity)
 spread_multiplier_limit: 0.3  # Max spread as % of ATR (0.3 = 30%)
 
-# === DYNAMIC POSITION SIZING (NEW) ===
-dynamic_position_sizing: false  # Enable dynamic lot calculation
-risk_per_trade_percent: 1.0  # Risk % of equity per trade (if dynamic enabled)
-max_lot_size: 0.05  # Maximum lot size limit
-min_lot_size: 0.01  # Minimum lot size limit
+# === DYNAMIC POSITION SIZING ===
+risk_per_trade_pct: 1.0      # Risk % of equity per trade
+kelly_fraction: 0.25          # Use 1/4 Kelly (conservative)
+pip_value_per_lot: 10.0       # USD per pip per 1.0 standard lot (XAUUSD = $10)
+max_lot: 0.5                  # Maximum lot size limit
+min_lot: 0.01                 # Minimum lot size limit
 
 # === ATR-BASED EXITS ===
 atr_sl_multiplier: 1.5  # Stop loss = entry ± (ATR × multiplier)
@@ -66,7 +67,8 @@ max_deviation: 10  # Max slippage in points
 db_path: db/sqlite.db
 
 # === AI PROVIDER (9Router) ===
-provider: ninerouter  # Single provider: ninerouter
+# Note: 'provider' field is deprecated and unused.
+# AI routing uses ninerouter_url directly.
 model: auto  # Model name or 'auto' for auto-routing
 ninerouter_url: http://localhost:20128/v1
 ninerouter_api_key: null  # Optional API key

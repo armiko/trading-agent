@@ -106,18 +106,22 @@ Kamu adalah AI Trading Quantitative...
 1. Action bukan BUY/SELL → Block
 2. Confidence < threshold (80%) → Block
 3. Today trades >= max (3) → Block
-4. Drawdown >= 5% → Block (HIBERNATE)
+4. Drawdown >= 5% → Block + Activate 60-min hibernation
 5. Directional conflict (BUY vs M15 Bearish) → Block
 6. RSI > 68 untuk BUY / RSI < 32 untuk SELL → Block
 7. Circuit breaker aktif → Block
 
-**Circuit Breaker:**
+**Circuit Breaker (Exponential Backoff):**
 ```
 3 errors → Hibernate 1 minute
 4 errors → Hibernate 5 minutes
 5 errors → Hibernate 15 minutes
 6+ errors → Hibernate 1 hour
 ```
+
+**Drawdown Hibernation:**
+Saat drawdown melebihi threshold, sistem mengaktifkan hibernation 60 menit
+(bukan hanya menolak trade setiap cycle). Ini mencegah log spam dan resource waste.
 
 ---
 
@@ -211,18 +215,26 @@ Buat 1 kalimat lesson learned.
 **Fungsi Utama:** Calculate optimal lot size berdasarkan Kelly Criterion & Volatility.
 
 **Method Penting:**
-- `calculate_kelly_lot()` - Kelly Criterion sizing
+- `calculate_kelly_lot()` - Kelly Criterion sizing (requires ATR for lot conversion)
 - `calculate_volatility_lot()` - ATR-based sizing
 - `calculate_optimal_lot()` - Conservative blend (minimum of both)
+- `get_sizing_info()` - Detailed sizing info for logging
 
 **Kelly Formula:**
 ```
 f* = (p × b - q) / b
-di mana:
-  p = win rate
-  q = 1 - p
-  b = avg_win / avg_loss
+risk_amount = f* × kelly_fraction × equity
+lot = risk_amount / (ATR × SL_multiplier × pip_value_per_lot)
 ```
+
+**Volatility Formula:**
+```
+risk_amount = equity × risk_per_trade_pct / 100
+lot = risk_amount / (ATR × SL_multiplier × pip_value_per_lot)
+```
+
+**Key Parameter:** `pip_value_per_lot` = USD per pip per 1.0 standard lot (default $10 for XAUUSD).
+Final lot = min(kelly_lot, volatility_lot) — selalu ambil yang lebih konservatif.
 
 ---
 

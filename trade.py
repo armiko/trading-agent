@@ -30,7 +30,7 @@ def validate_config(config: dict) -> list:
     warnings = []
     
     # Required fields
-    required = ["symbol", "lot", "provider", "mode"]
+    required = ["symbol", "lot", "mode"]
     for field in required:
         if field not in config:
             warnings.append(f"Missing required field: {field}")
@@ -41,23 +41,47 @@ def validate_config(config: dict) -> list:
         warnings.append(f"Invalid symbol: {config.get('symbol')}. Valid: {valid_symbols}")
     
     # Numeric validations
-    if config.get("lot", 0) <= 0:
-        warnings.append("Lot must be > 0")
-    if config.get("max_trades_per_day", 1) < 1:
-        warnings.append("max_trades_per_day must be >= 1")
-    conf = config.get("confidence_threshold", 80)
-    if conf < 0 or conf > 100:
-        warnings.append(f"confidence_threshold must be 0-100, got {conf}")
-    dd = config.get("max_drawdown_percent", 5)
-    if dd <= 0 or dd > 100:
-        warnings.append(f"max_drawdown_percent must be 1-100, got {dd}")
+    # lot: only validate if present (to avoid duplicate warning with required check)
+    if "lot" in config:
+        lot_val = config["lot"]
+        try:
+            lot_val = float(lot_val)
+            if lot_val <= 0:
+                warnings.append("Lot must be > 0")
+        except (ValueError, TypeError):
+            warnings.append("Lot must be a number")
     
-    # Provider validation with migration support
+    # max_trades_per_day: always validate (use default if missing)
+    max_trades_val = config.get("max_trades_per_day", 1)
+    try:
+        max_trades_val = int(max_trades_val)
+        if max_trades_val < 1:
+            warnings.append("max_trades_per_day must be >= 1")
+    except (ValueError, TypeError):
+        warnings.append("max_trades_per_day must be an integer")
+    
+    # confidence_threshold: always validate
+    conf_val = config.get("confidence_threshold", 80)
+    try:
+        conf_val = float(conf_val)
+        if conf_val < 0 or conf_val > 100:
+            warnings.append(f"confidence_threshold must be 0-100, got {conf_val}")
+    except (ValueError, TypeError):
+        warnings.append("confidence_threshold must be a number")
+    
+    # max_drawdown_percent: always validate
+    dd_val = config.get("max_drawdown_percent", 5)
+    try:
+        dd_val = float(dd_val)
+        if dd_val <= 0 or dd_val > 100:
+            warnings.append(f"max_drawdown_percent must be 1-100, got {dd_val}")
+    except (ValueError, TypeError):
+        warnings.append("max_drawdown_percent must be a number")
+    
+    # FIX 6: Provider field is deprecated — AI routing uses ninerouter_url directly
     provider = config.get("provider")
-    if provider == "ollama":
-        warnings.append("⚠️  provider 'ollama' is deprecated. Please update to 'ninerouter'. Ollama can still be used via 9Router.")
-    elif provider not in ["ninerouter", "ollama"]:
-        warnings.append(f"provider must be 'ninerouter', got {provider}")
+    if provider:
+        warnings.append("ℹ️  'provider' field is deprecated and unused. AI routing uses 'ninerouter_url' config directly. You can safely remove this field.")
     
     return warnings
 
@@ -90,12 +114,8 @@ def show_config():
         print()
         print("To edit, run: python trade.py setup")
         print()
-    except FileNotFoundError:
-        print("\n❌ config.yaml tidak ditemukan.")
-        print("Run: python trade.py setup")
-        print()
-    except yaml.YAMLError:
-        print("\n❌ config.yaml invalid YAML format.")
+    except Exception as e:
+        print(f"\n❌ Error membaca/validasi config: {e}")
         print()
 
 

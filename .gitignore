@@ -1,12 +1,21 @@
 __pycache__/
 *.pyc
 *.pyo
+
+# Database (runtime data)
 db/*.db
 db/*.db-journal
 db/*.db-wal
+db/*.json
+
+# User config (use config.template.yaml as reference)
+config.yaml
+
+# Environment
 .env
 .DS_Store
+
+# Build
 *.egg-info/
 dist/
 build/
-.GITIGNOREEOF

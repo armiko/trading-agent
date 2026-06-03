@@ -117,53 +117,55 @@ spread_multiplier_limit: 0.3
 
 ---
 
-## Dynamic Position Sizing (NEW)
+## Dynamic Position Sizing
 
-### dynamic_position_sizing
-**Type:** `boolean`  
-**Default:** `false`
-
-**Deskripsi:** Enable dynamic lot calculation berdasarkan Kelly Criterion + Volatility.
-
-```yaml
-dynamic_position_sizing: false
-```
+Position sizing is always active. Lot size is dynamically calculated using Kelly Criterion + ATR-based volatility method, taking the more conservative result.
 
 ---
 
-### risk_per_trade_percent
+### risk_per_trade_pct
 **Type:** `float`  
 **Default:** `1.0`  
 **Range:** `0.5` - `5.0`
 
-**Deskripsi:** Risk per trade dalam persen dari equity (jika dynamic sizing enabled).
+**Deskripsi:** Risk per trade dalam persen dari equity.
 
 ```yaml
-risk_per_trade_percent: 1.0
+risk_per_trade_pct: 1.0
 ```
 
 ---
 
-### max_lot_size
+### pip_value_per_lot
 **Type:** `float`  
-**Default:** `0.05`
+**Default:** `10.0`
 
-**Deskripsi:** Maximum lot size cap untuk dynamic sizing.
+**Deskripsi:** Nilai USD per pip per 1.0 standard lot. Untuk XAUUSD = $10/pip/lot.
 
 ```yaml
-max_lot_size: 0.05
+pip_value_per_lot: 10.0
+```
+
+### max_lot
+**Type:** `float`  
+**Default:** `0.5`
+
+**Deskripsi:** Maximum lot size cap.
+
+```yaml
+max_lot: 0.5
 ```
 
 ---
 
-### min_lot_size
+### min_lot
 **Type:** `float`  
 **Default:** `0.01`
 
-**Deskripsi:** Minimum lot size floor untuk dynamic sizing.
+**Deskripsi:** Minimum lot size floor.
 
 ```yaml
-min_lot_size: 0.01
+min_lot: 0.01
 ```
 
 ---
@@ -494,18 +496,11 @@ db_path: db/sqlite.db
 
 ## AI Provider (9Router)
 
-### provider
+### provider (DEPRECATED)
 **Type:** `string`  
-**Default:** `ninerouter`  
-**Valid Values:** `ninerouter`
+**Status:** ⚠️ Deprecated — field ini tidak lagi digunakan.
 
-**Deskripsi:** AI provider. Gunakan `ninerouter` untuk akses 60+ models dengan auto-fallback.
-
-```yaml
-provider: ninerouter
-```
-
----
+**Deskripsi:** Field ini tidak berpengaruh pada routing AI. AI routing menggunakan `ninerouter_url` secara langsung. Field ini bisa dihapus dari config.
 
 ### model
 **Type:** `string`  

@@ -1,12 +1,10 @@
 """
 Risk Engine: Memvalidasi apakah sinyal boleh dieksekusi.
-- Drawdown harian > max_drawdown_percent → HIBERNATE
-- Max trades per day
+- Drawdown harian > max_drawdown_percent -> HIBERNATE
+- Max trades per day (customizable)
 - Confidence threshold
 - Directional conflict dengan M15
 - Circuit breaker untuk error bertubi-tubi
-- FIX #5: Track errors by category (AI, MT5, DB, Network)
-- FIX #20: Exponential backoff untuk recovery
 """
 import sqlite3
 from datetime import datetime, date, timedelta
@@ -17,11 +15,9 @@ class RiskManager:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.db_path = config.get("db_path", "db/sqlite.db")
-        self.max_trades = config.get("max_trades_per_day", 3)
+        self.max_trades = config.get("max_trades_per_day", 3)  # Bisa diganti kapan saja
         self.confidence_threshold = config.get("confidence_threshold", 80)
         self.max_drawdown_pct = config.get("max_drawdown_percent", 5)
-        self.circuit_breaker_max = config.get("circuit_breaker_max_errors", 3)
-        self.circuit_breaker_sleep = config.get("circuit_breaker_sleep_hours", 1)
 
         # State runtime
         self.consecutive_errors = 0
@@ -30,18 +26,22 @@ class RiskManager:
         self.daily_initial_equity: Optional[float] = None
         self.today_trades = 0
         
-        # FIX #5: Error tracking by category
+        # Error tracking
         self.error_counts = {
-            "ai": 0,
-            "mt5": 0,
-            "db": 0,
-            "network": 0,
-            "other": 0
+            "ai": 0, "mt5": 0, "db": 0, "network": 0, "other": 0
         }
         
-        # FIX #20: Exponential backoff
+        # Exponential backoff
         self.backoff_level = 0
         self.last_error_time: Optional[datetime] = None
+        
+        # FIX: Default circuit breaker di 3 errors, lalu backoff 1min -> 5min -> 15min -> 60min
+        self.max_errors_before_breaker = config.get("circuit_breaker_max_errors", 3)
+
+    def set_max_trades(self, n: int):
+        """Override batas trade harian, misal: 1, 3, 5, 10, 999 (unlimited)"""
+        self.max_trades = n
+        print(f"[RISK] Max trades per day updated to: {n}")
 
     def reset_daily_state(self, equity: float):
         """Reset state untuk hari baru"""
@@ -51,11 +51,27 @@ class RiskManager:
         self.is_hibernating = False
 
     def _count_today_trades(self) -> int:
-        """Hitung trade hari ini dari DB"""
+        """Hitung trade hari ini dari DB menggunakan SERVER TIME dari MT5 jika ada"""
         try:
+            import MetaTrader5 as mt5
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()
-            today = date.today().isoformat()
+            
+            # Gunakan server time dari MT5 jika tersedia (broker timezone)
+            server_time = None
+            try:
+                if mt5.terminal_info():
+                    tick = mt5.symbol_info_tick(self.config.get("symbol", "XAUUSD"))
+                    if tick and hasattr(tick, 'time') and tick.time:
+                        server_time = datetime.fromtimestamp(tick.time)
+            except Exception:
+                pass
+            
+            if server_time:
+                today = server_time.strftime("%Y-%m-%d")
+            else:
+                today = date.today().isoformat()
+            
             c.execute(
                 "SELECT COUNT(*) FROM trade_history WHERE DATE(open_time) = ?",
                 (today,),
@@ -74,10 +90,6 @@ class RiskManager:
         return max(0.0, dd)
 
     def register_error(self, error_type: str = "other"):
-        """
-        FIX #5: Track errors by category (ai, mt5, db, network, other)
-        FIX #20: Exponential backoff untuk recovery
-        """
         if error_type in self.error_counts:
             self.error_counts[error_type] += 1
         else:
@@ -86,7 +98,7 @@ class RiskManager:
         self.consecutive_errors += 1
         self.last_error_time = datetime.now()
         
-        if self.consecutive_errors >= self.circuit_breaker_max:
+        if self.consecutive_errors >= self.max_errors_before_breaker:
             self._activate_circuit_breaker()
 
     def register_success(self):
@@ -96,9 +108,7 @@ class RiskManager:
         self.backoff_level = 0
 
     def _activate_circuit_breaker(self):
-        """
-        FIX #20: Exponential backoff - 1min → 5min → 15min → 1hour
-        """
+        """Exponential backoff: 1min -> 5min -> 15min -> 60min"""
         backoff_minutes = [1, 5, 15, 60]
         self.backoff_level = min(self.backoff_level, len(backoff_minutes) - 1)
         sleep_minutes = backoff_minutes[self.backoff_level]
@@ -106,7 +116,6 @@ class RiskManager:
         self.hibernate_until = datetime.now() + timedelta(minutes=sleep_minutes)
         self.is_hibernating = True
         
-        # Log error summary
         error_summary = ", ".join([f"{k}: {v}" for k, v in self.error_counts.items() if v > 0])
         print(f"[RISK] CIRCUIT BREAKER: Hibernate for {sleep_minutes} min (level {self.backoff_level + 1})")
         print(f"[RISK] Error summary: {error_summary}")
@@ -115,7 +124,6 @@ class RiskManager:
         self.backoff_level += 1
 
     def check_circuit_breaker(self) -> bool:
-        """Cek apakah circuit breaker masih aktif"""
         if not self.is_hibernating:
             return True
         if self.hibernate_until and datetime.now() >= self.hibernate_until:
@@ -133,10 +141,7 @@ class RiskManager:
         current_equity: float,
         context: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """
-        Validasi komprehensif sebelum eksekusi.
-        Return dict: {"allowed": bool, "reason": str}
-        """
+        """Validasi komprehensif sebelum eksekusi."""
         if not self.check_circuit_breaker():
             return {
                 "allowed": False,
@@ -162,9 +167,14 @@ class RiskManager:
         if self.daily_initial_equity and self.daily_initial_equity > 0:
             dd_pct = (dd / self.daily_initial_equity) * 100
             if dd_pct >= self.max_drawdown_pct:
+                # FIX 5: Activate hibernation to prevent log spam and wasted cycles
+                if not self.is_hibernating:
+                    self.hibernate_until = datetime.now() + timedelta(minutes=60)
+                    self.is_hibernating = True
+                    print(f"[RISK] DRAWDOWN HIBERNATE: {dd_pct:.1f}% drawdown. Sleeping until {self.hibernate_until}")
                 return {
                     "allowed": False,
-                    "reason": f"Daily drawdown {dd_pct:.1f}% >= {self.max_drawdown_pct}% → HIBERNATE",
+                    "reason": f"Daily drawdown {dd_pct:.1f}% >= {self.max_drawdown_pct}% -> HIBERNATE",
                 }
 
         trend_m15 = context.get("trend_m15", "NEUTRAL")
