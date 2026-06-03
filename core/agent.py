@@ -524,6 +524,7 @@ class TradingAgent:
             win_rate=self.performance_tracker.get_metrics().get("win_rate", 50) / 100,
             avg_win=self.performance_tracker.get_metrics().get("total_profit", 50) / max(self.performance_tracker.get_metrics().get("wins", 1), 1),
             avg_loss=self.performance_tracker.get_metrics().get("total_loss", 30) / max(self.performance_tracker.get_metrics().get("losses", 1), 1),
+            pip_value_per_lot=self.executor._get_pip_value_per_lot(),
             point=self.executor._get_point_value()
         )
         print(f"[AGENT] Position sizing: lot={optimal_lot} (from base={self.config.get('lot', 0.01)})")

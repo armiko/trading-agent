@@ -40,6 +40,21 @@ class ExecutionEngine:
             return 0.01
         return info.point
 
+    def _get_pip_value_per_lot(self) -> float:
+        """Dapatkan nilai USD per 1 pip per 1 standard lot dinamis dari broker"""
+        info = mt5.symbol_info(self.symbol)
+        if info is None:
+            return 10.0
+        # tick_value adalah profit/loss per 1 tick per lot.
+        # pip biasanya 10 tick (di forex 5 digit). 
+        # Jika crypto atau index, kita konversi dari tick value.
+        tick_size = info.trade_tick_size
+        point = info.point
+        pip_size = point * 10
+        ticks_per_pip = pip_size / tick_size if tick_size > 0 else 10
+        pip_value = info.trade_tick_value * ticks_per_pip
+        return pip_value if pip_value > 0 else 10.0
+
     def _calculate_sl_tp(
         self, action: str, entry_price: float, atr: float
     ) -> tuple[float, float]:
@@ -245,18 +260,27 @@ class ExecutionEngine:
                     await self.modify_position(pos.ticket, new_sl, pos.tp)
                     print(f"[EXEC] Trailing stop updated for {pos.ticket}: SL {pos.sl:.5f} -> {new_sl:.5f}")
 
-            # FIX #8: Time-based exit dengan rules untuk profit dan loss
-            # FIX: Jangan gunakan datetime.now() karena beda timezone dengan broker (pos.time)
+            # FIX #8: Ganti Time-based exit dengan Tighter Breakeven/Trailing Stop
             tick = mt5.symbol_info_tick(self.symbol)
             current_time = tick.time if tick else int(datetime.now().timestamp())
             duration = (current_time - pos.time) / 60.0
             
+            # Jika posisi sudah terbuka lama (lebih dari time_exit_min) tapi profit masih minim
             if duration >= self.time_exit_min:
-                # Rule 1: Jika profit kecil (< 0.5 ATR) setelah 20 menit → close
-                if 0 <= profit_points < (atr_points * self.time_exit_profit_atr):
-                    await self.close_position(pos.ticket)
-                    print(f"[EXEC] Time-based exit (low profit) for {pos.ticket} after {duration:.1f} min")
-                # Rule 2: Jika loss > 1 ATR setelah 20 menit → force close (cut loss)
+                if 0 < profit_points < (atr_points * self.time_exit_profit_atr):
+                    # Kencangkan trailing stop/breakeven ke +1 point (minimum profit)
+                    tight_offset = 2 * point
+                    if pos.type == mt5.ORDER_TYPE_BUY:
+                        new_sl = pos.price_open + tight_offset
+                        if new_sl > pos.sl and new_sl < current_price:
+                            await self.modify_position(pos.ticket, new_sl, pos.tp)
+                            print(f"[EXEC] Tight Breakeven activated for {pos.ticket} after {duration:.1f} min (slow profit)")
+                    else:
+                        new_sl = pos.price_open - tight_offset
+                        if new_sl < pos.sl and new_sl > current_price:
+                            await self.modify_position(pos.ticket, new_sl, pos.tp)
+                            print(f"[EXEC] Tight Breakeven activated for {pos.ticket} after {duration:.1f} min (slow profit)")
+                # Cut loss darurat jika harga berbalik melawan lebih dari 1 ATR dalam waktu lama
                 elif profit_points < -(atr_points * 1.0):
                     await self.close_position(pos.ticket)
-                    print(f"[EXEC] Time-based exit (cut loss) for {pos.ticket} after {duration:.1f} min")
+                    print(f"[EXEC] Emergency exit (cut loss) for {pos.ticket} after {duration:.1f} min")

@@ -23,10 +23,9 @@ def print_header():
 
 
 def validate_symbol(value):
-    """Validate trading symbol"""
-    valid_symbols = ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'BTCUSD']
-    if value.upper() not in valid_symbols:
-        return False, f"Symbol harus salah satu dari: {', '.join(valid_symbols)}"
+    """Validate trading symbol (accept any non-empty string)"""
+    if not value or len(value) < 2:
+        return False, "Symbol tidak boleh kosong dan minimal 2 karakter"
     return True, None
 
 
@@ -76,6 +75,11 @@ def main():
         default=5.0
     )
     
+    kelly_fraction = FloatPrompt.ask(
+        "[cyan]Kelly Fraction (0.1 - 1.0)[/cyan]",
+        default=0.25
+    )
+    
     # AI Provider
     console.print("\n[bold yellow]🤖 AI PROVIDER[/bold yellow]")
     console.print("[dim]" + "-" * 60 + "[/dim]")
@@ -112,6 +116,7 @@ def main():
     table.add_row("Max Trades/Day", str(max_trades))
     table.add_row("Confidence", f"{confidence}%")
     table.add_row("Max Drawdown", f"{max_drawdown}%")
+    table.add_row("Kelly Fraction", str(kelly_fraction))
     table.add_row("AI Provider", provider)
     table.add_row("Model", model)
     table.add_row("Mode", mode)
@@ -141,8 +146,7 @@ def main():
         'atr_tp_multiplier': 2.5,
         'atr_trailing_multiplier': 1.0,
         'breakeven_after_atr': 1.0,
-        'time_exit_minutes': 20,
-        'time_exit_min_profit_atr': 0.5,
+        'kelly_fraction': float(kelly_fraction),
         'magic_number': 99999,
         'max_deviation': 10,
         'db_path': 'db/sqlite.db',

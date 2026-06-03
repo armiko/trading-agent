@@ -193,15 +193,19 @@ class RiskManager:
                 return {"allowed": False, "reason": "SELL signal but M15 trend is BULLISH (directional conflict)"}
 
         rsi = context.get("rsi", 50)
-        if action == "BUY" and rsi > 68:
-            return {
-                "allowed": False,
-                "reason": f"RSI {rsi} > 68 overbought, avoid BUY at peak",
-            }
-        if action == "SELL" and rsi < 32:
-            return {
-                "allowed": False,
-                "reason": f"RSI {rsi} < 32 oversold, avoid SELL at bottom",
-            }
+        adx = context.get("adx", 0)
+        
+        # Bypass RSI filter if ADX indicates strong trend (> 25)
+        if adx < 25:
+            if action == "BUY" and rsi > 68:
+                return {
+                    "allowed": False,
+                    "reason": f"RSI {rsi} > 68 overbought (ADX {adx} < 25), avoid BUY at peak",
+                }
+            if action == "SELL" and rsi < 32:
+                return {
+                    "allowed": False,
+                    "reason": f"RSI {rsi} < 32 oversold (ADX {adx} < 25), avoid SELL at bottom",
+                }
 
         return {"allowed": True, "reason": "All checks passed"}

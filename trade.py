@@ -4,6 +4,7 @@ Usage:
   python trade.py setup     - Interactive setup wizard
   python trade.py config    - Lihat/edit config saat ini
   python trade.py status    - Cek koneksi MT5
+  python trade.py report    - Lihat ringkasan performa dan riwayat trading
   python trade.py models    - List available AI models
   python trade.py start     - Start TUI trading agent
   python trade.py run       - Run headless (auto mode)
@@ -24,6 +25,7 @@ def print_usage():
     console.print("  [green]setup[/green]        Interactive setup wizard")
     console.print("  [green]config[/green]       Tampilkan/edit konfigurasi saat ini")
     console.print("  [green]status[/green]       Cek koneksi MT5 & balance")
+    console.print("  [green]report[/green]       Lihat laporan performa (Win/Loss, PnL, AI Reason)")
     console.print("  [green]models[/green]       List AI provider (9Router)")
     console.print("  [green]start[/green]        Start TUI (assisted mode)")
     console.print("  [green]run[/green]          Run headless (auto mode)\n")
@@ -144,6 +146,17 @@ def main():
     elif command == "status":
         from cli.status import run_status
         run_status()
+
+    elif command == "report":
+        limit = 3
+        if "--limit" in sys.argv:
+            try:
+                idx = sys.argv.index("--limit")
+                limit = int(sys.argv[idx + 1])
+            except (ValueError, IndexError):
+                pass
+        from cli.report import run_report
+        run_report(limit)
 
     elif command == "models":
         from cli.models import run_models

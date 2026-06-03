@@ -141,7 +141,38 @@ To change model, edit config.yaml:
 
 ---
 
-### 5. start - Start TUI (Assisted Mode)
+### 5. report - View Performance Report
+
+**Fungsi:** Tampilkan laporan performa trading (Win/Loss, PnL, AI Reason) dari database.
+
+**Usage:**
+```bash
+python trade.py report
+python trade.py report --limit 5  # Menampilkan 5 trade terakhir
+```
+
+**Output:**
+```
+┌──────────────────────────────────────────────┐
+│ 📊 TRADING PERFORMANCE SUMMARY               │
+├─────────────────┬────────────────────────────┤
+│ Metric          │ Value                      │
+├─────────────────┼────────────────────────────┤
+│ Total Trades    │ 15                         │
+│ Win Rate        │ 66.7%                      │
+│ Wins / Losses   │ 10 Wins / 5 Losses         │
+│ Gross Profit    │ +45.50                     │
+│ Gross Loss      │ -12.30                     │
+│ Net PnL         │ 33.20                      │
+└─────────────────┴────────────────────────────┘
+
+📝 RECENT TRADES (LAST 3)
+... (Menampilkan detail 3 trade terakhir)
+```
+
+---
+
+### 6. start - Start TUI (Assisted Mode)
 
 **Fungsi:** Jalankan trading agent dengan TUI dashboard (manual approval).
 
@@ -253,8 +284,8 @@ python trade.py status
 # Start trading
 python trade.py start
 
-# Or run headless
-python trade.py run
+# End of day: Check performance
+python trade.py report
 ```
 
 ### Troubleshooting

@@ -19,16 +19,21 @@ pip install -r requirements.txt
 npm install -g 9router
 9router  # Configure providers in browser dashboard
 
-# 3. Configure trading agent
+# 3. Configure
+# Setup interaktif
 python trade.py setup
 
-# 4. Check MT5 connection
+# Cek koneksi
 python trade.py status
 
-# 5. Start trading
-python trade.py start   # Assisted mode (confirm trades via TUI)
-# or
-python trade.py run      # Auto mode (fully automated)
+# Cek riwayat performa & alasan AI
+python trade.py report --limit 5
+
+# Jalankan dalam mode assisted (membutuhkan konfirmasi)
+python trade.py start
+
+# Jalankan dalam auto mode
+python trade.py run
 ```
 
 ---
@@ -47,8 +52,8 @@ CLI / TUI (Textual/Rich)  →  Core Engine  →  9Router & MT5  →  SQLite
 1. **Booting** — MT5 initialize, load config & tracked positions
 2. **Data Gathering** — Fetch M5/M15 candles, calculate indicators, check spread
 3. **AI Decision** — Build prompt with context + learning memory, call AI
-4. **Risk Validation** — Drawdown, confidence, circuit breaker, DXY divergence
-5. **Execution** — Send order with ATR-based SL/TP & dynamic lot sizing
+4. **Risk Engine**: Memvalidasi eksekusi dengan Drawdown harian, Kelly Criterion (dinamis), ADX Regime Filter, dan korelasi DXY.
+5. **Execution Engine**: Manajemen order ke MT5 dengan *tight breakeven* dan *trailing stop*.
 6. **Position Monitoring** — Trailing stop, breakeven, time-based exit
 7. **Post-Trade Learning** — Save to DB, AI self-reflection, lesson learned
 
@@ -324,6 +329,14 @@ Dokumentasi lengkap tersedia di folder `docs/`:
 ---
 
 ## 📝 Changelog
+
+### v2.4.0 (Architecture Fixes & Generalization)
+* Bebas menggunakan instrumen apapun (Tidak terkunci hanya XAUUSD).
+* Kalkulasi lot dinamis menggunakan *pip value* langsung dari MT5.
+* **Kelly Fraction** kini bisa diatur lewat `trade.py setup`.
+* Filter *Overbought/Oversold* RSI akan dinonaktifkan secara pintar jika kekuatan tren (ADX > 25) sangat kuat.
+* *Tight Breakeven*: Pengganti time-based exit. Jika posisi lebih dari 20 menit namun profit lambat, SL akan digeser ke breakeven.
+* Command baru `python trade.py report` untuk melihat metrik Win Rate dan *Reasoning* AI secara rapi dengan parameter opsional `--limit N`.
 
 ### v2.3.0 — MT5 Integration & CLI UI Enhancement
 - **Added** `MT5Provider` to directly connect and fetch OHLCV data from MetaTrader 5 locally.
