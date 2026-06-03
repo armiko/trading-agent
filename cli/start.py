@@ -215,7 +215,18 @@ class TradingTUI(App):
             
             # Get AI decision
             context = await self.agent.market.get_context()
-            decision = await self.agent.ai.decide(context)
+            decision = await self.agent.get_ai_decision(context)
+            
+            # Post-AI Sanity Check (S/R filter)
+            decision = self.agent.validate_ai_sanity(decision, context)
+            
+            # Calculate optimal lot size
+            optimal_lot = self.agent.position_sizer.calculate_lot_size(
+                current_equity=self.agent.current_equity,
+                sl_distance=self.agent.market.current_atr * self.agent.config.get("atr_sl_multiplier", 1.5)
+            )
+            decision["optimal_lot"] = optimal_lot
+            self.agent.last_decision = decision
             
             if decision["action"] == "HOLD":
                 return
@@ -256,7 +267,7 @@ class TradingTUI(App):
         
         try:
             # Use agent's execute_signal_assisted method (includes position tracking)
-            decision = {
+            decision = self.agent.last_decision if self.agent.last_decision else {
                 "action": self.signal_panel.action,
                 "confidence": self.signal_panel.confidence,
                 "reason": self.signal_panel.reason,

@@ -390,6 +390,12 @@ class TradingAgent:
                     
         return decision
 
+    async def get_ai_decision(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Dapatkan keputusan dari AI (Single atau Ensemble)."""
+        if self.ensemble_enabled and self.ai_ensemble:
+            return await self.ai_ensemble.decide_ensemble(context)
+        return await self.ai.decide(context)
+
     async def run_cycle(self):
         """
         Satu siklus lengkap trading loop.
@@ -469,11 +475,9 @@ class TradingAgent:
             return  # Skip AI decision jika masih ada posisi
 
         # Fase 3: AI Decision (dengan opsi Ensemble)
+        decision = await self.get_ai_decision(context)
         if self.ensemble_enabled and self.ai_ensemble:
-            decision = await self.ai_ensemble.decide_ensemble(context)
             print(f"[AGENT] Ensemble Decision: {decision['action']} ({decision.get('ensemble_agreement', 100)}% agreement)")
-        else:
-            decision = await self.ai.decide(context)
             
         # Post-AI Sanity Check
         decision = self.validate_ai_sanity(decision, context)

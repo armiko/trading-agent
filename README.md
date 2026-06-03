@@ -325,6 +325,11 @@ Dokumentasi lengkap tersedia di folder `docs/`:
 
 ## 📝 Changelog
 
+### v2.2.1 — Interactive Mode Feature Parity
+- **Fixed** Assisted Mode (TUI): AI Ensemble voting is now correctly triggered in interactive mode.
+- **Fixed** Assisted Mode (TUI): Support/Resistance Sanity Checks are now applied before prompting the user for approval.
+- **Fixed** Assisted Mode (TUI): Dynamic Position Sizing (Kelly/Volatility) is now correctly injected into the user's manual approval flow instead of defaulting to static lot sizes.
+
 ### v2.2.0 — Final Logic & Mathematical Fixes
 - **Fixed** News Filter Timezone: Converted all local `datetime.now()` to `datetime.utcnow()` to prevent missing GMT-based RSS news events in non-UTC timezones.
 - **Fixed** DXY Correlation Math: Changed correlation timeframe alignment from M5 vs H1 (producing `NaN` due to index mismatch) to H1 vs H1 for robust divergence detection.
