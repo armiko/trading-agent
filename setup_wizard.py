@@ -105,6 +105,22 @@ def main():
         choices=["assisted", "auto"]
     ).lower()
     
+    # SaaS Auth
+    console.print("\n[bold yellow]🔐 SAAS AUTHENTICATION[/bold yellow]")
+    console.print("[dim]" + "-" * 60 + "[/dim]")
+    
+    saas_api_key = Prompt.ask(
+        "[cyan]SaaS API Key (Dapatkan dari Web Dashboard)[/cyan]",
+        default=""
+    )
+    
+    saas_backend_url = Prompt.ask(
+        "[cyan]SaaS Backend URL[/cyan]",
+        default="http://127.0.0.1:8000/api/v1"
+    )
+    
+    console.print("\n[bold green]✅ Setup Complete![/bold green]")
+    
     # Summary Table
     table = Table(title="[bold]📋 CONFIGURATION SUMMARY[/bold]", show_header=False, box=None)
     table.add_column("Parameter", style="cyan")
@@ -117,6 +133,7 @@ def main():
     table.add_row("Confidence", f"{confidence}%")
     table.add_row("Max Drawdown", f"{max_drawdown}%")
     table.add_row("Kelly Fraction", str(kelly_fraction))
+    table.add_row("SaaS API Key", saas_api_key[:10] + "..." if saas_api_key else "")
     table.add_row("AI Provider", provider)
     table.add_row("Model", model)
     table.add_row("Mode", mode)
@@ -150,6 +167,8 @@ def main():
         'magic_number': 99999,
         'max_deviation': 10,
         'db_path': 'db/sqlite.db',
+        'saas_api_key': saas_api_key,
+        'saas_backend_url': saas_backend_url
     }
     
     if provider == 'ninerouter':

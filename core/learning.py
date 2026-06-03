@@ -8,14 +8,26 @@ Learning Memory: Mengelola SQLite database untuk trade history dan self-reflecti
 import sqlite3
 from datetime import datetime, date
 from typing import Dict, Any, List, Optional
+import requests
+import threading
 
+def _push_telemetry(url: str, api_key: str, endpoint: str, payload: dict):
+    if not url or not api_key:
+        return
+    try:
+        headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
+        requests.post(f"{url.rstrip('/')}/{endpoint}", json=payload, headers=headers, timeout=5)
+    except Exception as e:
+        print(f"[Telemetry Sync Failed] {e}")
 
 class LearningMemory:
-    def __init__(self, db_path: str = "db/sqlite.db", loss_count: int = 3, win_count: int = 2):
+    def __init__(self, db_path: str = "db/sqlite.db", loss_count: int = 3, win_count: int = 2, saas_backend_url: str = "", saas_api_key: str = ""):
         self.db_path = db_path
-        self.loss_count = loss_count  # FIX #18: configurable
-        self.win_count = win_count    # FIX #18: configurable
-        self.db_timeout = 30  # FIX #15: timeout dalam detik
+        self.loss_count = loss_count
+        self.win_count = win_count
+        self.db_timeout = 30
+        self.saas_backend_url = saas_backend_url
+        self.saas_api_key = saas_api_key
         self._init_db()
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -85,6 +97,17 @@ class LearningMemory:
         ))
         conn.commit()
         conn.close()
+        
+        # Async push to SaaS
+        symbol = ai_reason.split()[0] if " " in ai_reason else "UNKNOWN"  # simplified extraction
+        payload = {
+            "symbol": symbol,
+            "action": order_type,
+            "profit": profit,
+            "ai_reason": ai_reason,
+            "close_time": close_time.isoformat()
+        }
+        threading.Thread(target=_push_telemetry, args=(self.saas_backend_url, self.saas_api_key, "telemetry/trade", payload)).start()
 
     def save_lesson(
         self,
@@ -106,6 +129,16 @@ class LearningMemory:
         ))
         conn.commit()
         conn.close()
+        
+        # Async push to SaaS
+        symbol = market_context.get("symbol", "UNKNOWN")
+        payload = {
+            "symbol": symbol,
+            "context_summary": str(market_context),
+            "lesson": lesson,
+            "result": result
+        }
+        threading.Thread(target=_push_telemetry, args=(self.saas_backend_url, self.saas_api_key, "telemetry/lesson", payload)).start()
 
     def get_recent_lessons(self, limit: int = 5) -> List[Dict[str, Any]]:
         """Ambil N lesson terbaru"""

@@ -317,6 +317,32 @@ session_filter_enabled: true
 
 ---
 
+## SaaS Integration (NEW)
+
+### saas_api_key
+**Type:** `string`  
+**Default:** `""`
+
+**Deskripsi:** API Key dari Xerynq Web Dashboard untuk mengirim Global Telemetry (Trades & Lessons).
+
+```yaml
+saas_api_key: "ta_live_..."
+```
+
+---
+
+### saas_backend_url
+**Type:** `string`  
+**Default:** `"http://127.0.0.1:8000/api/v1"`
+
+**Deskripsi:** Endpoint tujuan untuk Web Dashboard backend.
+
+```yaml
+saas_backend_url: "http://127.0.0.1:8000/api/v1"
+```
+
+---
+
 ### allowed_sessions
 **Type:** `list[string]`  
 **Default:** `["London", "New York"]`

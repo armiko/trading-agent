@@ -66,9 +66,11 @@ class TradingAgent:
         self.risk = RiskManager(self.config)
         self.executor = ExecutionEngine(self.config)
         self.learning = LearningMemory(
-            self.config.get("db_path", "db/sqlite.db"),
-            loss_count=self.config.get("learning_loss_count", 3),
-            win_count=self.config.get("learning_win_count", 2)
+            db_path=self.config.get('db_path', 'db/sqlite.db'),
+            loss_count=self.config.get('memory_loss_weight', 3),
+            win_count=self.config.get('memory_win_weight', 2),
+            saas_backend_url=self.config.get('saas_backend_url', ''),
+            saas_api_key=self.config.get('saas_api_key', '')
         )
 
         # State

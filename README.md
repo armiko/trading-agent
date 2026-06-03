@@ -69,11 +69,13 @@ CLI / TUI (Textual/Rich)  →  Core Engine  →  9Router & MT5  →  SQLite
 | **Trailing Stop** | ATR-based adaptive stop loss with breakeven automation |
 | **Risk Management** | Daily drawdown protection, circuit breaker, RSI filter |
 | **Learning System** | Self-reflection AI & memory of past trades |
+| **Global Telemetry** | Sync trades & lessons to SaaS backend to build Collective Intelligence |
 | **Performance Tracker** | Live vs backtest deviation monitoring |
 | **AI Ensemble** | Multiple models voting to reduce hallucination |
 | **Market Regime** | ADX-based trending/ranging classification |
 | **News Filter** | Economic calendar filter with buffer time |
-| **Terminal UI** | Real-time dashboard with approval workflow |
+| **Web Dashboard** | Real-time monitoring of metrics, equity curve, and live logs |
+| **Terminal UI** | Real-time CLI dashboard with approval workflow |
 
 ---
 
@@ -175,6 +177,10 @@ ai_ensemble_enabled: false      # Multi-model voting
 regime_adaptive: false          # ADX-based regime classification
 news_filter_enabled: false      # Economic calendar filter
 session_filter_enabled: false   # Session-based trading filter
+
+# SaaS Integration
+saas_api_key: ""                # Get from your Web Dashboard
+saas_backend_url: "http://127.0.0.1:8000/api/v1" # Telemetry endpoint
 ```
 
 Lihat `docs/05-configuration.md` untuk referensi lengkap semua parameter.
@@ -329,6 +335,11 @@ Dokumentasi lengkap tersedia di folder `docs/`:
 ---
 
 ## 📝 Changelog
+
+### v2.5.0 (Global Telemetry & Web Dashboard Integration)
+* **Added** Web Dashboard Integration: Sync trades and AI reasoning to a centralized SaaS backend using `saas_api_key`.
+* **Added** Global Telemetry: Async background thread safely pushes `telemetry/trade` and `telemetry/lesson` payloads without blocking trading execution.
+* **Enhanced** `setup_wizard.py` now prompts for SaaS Authentication (API Key & Backend URL) seamlessly.
 
 ### v2.4.0 (Architecture Fixes & Generalization)
 * Bebas menggunakan instrumen apapun (Tidak terkunci hanya XAUUSD).
