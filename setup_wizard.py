@@ -5,27 +5,21 @@ Interactive configuration untuk parameter trading.
 """
 import yaml
 import os
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Prompt, IntPrompt, FloatPrompt, Confirm
+from rich.table import Table
+from rich.align import Align
+from rich import print as rprint
 
+console = Console()
 
 def print_header():
-    print("\n" + "="*60)
-    print("🤖 XERYNQ - SETUP WIZARD")
-    print("="*60 + "\n")
-
-
-def get_input(prompt, default, validator=None):
-    """Get user input dengan default value dan validator"""
-    while True:
-        user_input = input(f"{prompt} [{default}]: ").strip()
-        value = user_input if user_input else default
-        
-        if validator:
-            valid, error = validator(value)
-            if not valid:
-                print(f"❌ {error}")
-                continue
-        
-        return value
+    header_text = "[bold cyan]🤖 XERYNQ - SETUP WIZARD[/bold cyan]\nInteractive Trading Agent Configuration"
+    panel = Panel(Align.center(header_text), border_style="cyan", padding=(1, 2))
+    console.print(panel)
+    console.print("\n[dim]Setup wizard akan membantu Anda mengkonfigurasi trading agent.[/dim]")
+    console.print("[dim]Tekan Enter untuk menggunakan nilai default.[/dim]\n")
 
 
 def validate_symbol(value):
@@ -36,146 +30,98 @@ def validate_symbol(value):
     return True, None
 
 
-def validate_positive_float(value):
-    """Validate positive float"""
-    try:
-        val = float(value)
-        if val <= 0:
-            return False, "Nilai harus lebih besar dari 0"
-        return True, None
-    except ValueError:
-        return False, "Nilai harus berupa angka"
-
-
-def validate_positive_int(value):
-    """Validate positive integer"""
-    try:
-        val = int(value)
-        if val <= 0:
-            return False, "Nilai harus lebih besar dari 0"
-        return True, None
-    except ValueError:
-        return False, "Nilai harus berupa angka bulat"
-
-
-def validate_percentage(value):
-    """Validate percentage (0-100)"""
-    try:
-        val = float(value)
-        if val <= 0 or val > 100:
-            return False, "Nilai harus antara 0-100"
-        return True, None
-    except ValueError:
-        return False, "Nilai harus berupa angka"
-
-
-def validate_mode(value):
-    """Validate trading mode"""
-    if value.lower() not in ['assisted', 'auto']:
-        return False, "Mode harus 'assisted' atau 'auto'"
-    return True, None
-
-
-def validate_provider(value):
-    """Validate AI provider"""
-    return True, None  # 9Router single provider
-
-
 def main():
     print_header()
     
-    print("Setup wizard akan membantu Anda mengkonfigurasi trading agent.")
-    print("Tekan Enter untuk menggunakan nilai default.\n")
-    
     # Trading Parameters
-    print("📊 TRADING PARAMETERS")
-    print("-" * 60)
+    console.print("[bold yellow]📊 TRADING PARAMETERS[/bold yellow]")
+    console.print("[dim]" + "-" * 60 + "[/dim]")
     
-    symbol = get_input(
-        "Instrument/Symbol",
-        "XAUUSD",
-        validate_symbol
-    ).upper()
+    while True:
+        symbol = Prompt.ask(
+            "[cyan]Instrument/Symbol[/cyan]",
+            default="XAUUSD"
+        ).upper()
+        valid, err = validate_symbol(symbol)
+        if valid:
+            break
+        console.print(f"[bold red]❌ {err}[/bold red]")
     
-    capital = get_input(
-        "Modal/Capital (USC)",
-        "2000",
-        validate_positive_float
+    capital = FloatPrompt.ask(
+        "[cyan]Modal/Capital (USC)[/cyan]",
+        default=2000.0
     )
     
-    lot = get_input(
-        "Lot Size",
-        "0.01",
-        validate_positive_float
+    lot = FloatPrompt.ask(
+        "[cyan]Lot Size[/cyan]",
+        default=0.01
     )
     
-    max_trades = get_input(
-        "Max Trades Per Day",
-        "3",
-        validate_positive_int
+    max_trades = IntPrompt.ask(
+        "[cyan]Max Trades Per Day[/cyan]",
+        default=3
     )
     
     # Risk Parameters
-    print("\n⚠️  RISK MANAGEMENT")
-    print("-" * 60)
+    console.print("\n[bold yellow]⚠️  RISK MANAGEMENT[/bold yellow]")
+    console.print("[dim]" + "-" * 60 + "[/dim]")
     
-    confidence = get_input(
-        "Confidence Threshold (%)",
-        "80",
-        validate_percentage
+    confidence = FloatPrompt.ask(
+        "[cyan]Confidence Threshold (%)[/cyan]",
+        default=80.0
     )
     
-    max_drawdown = get_input(
-        "Max Drawdown Per Day (%)",
-        "5",
-        validate_percentage
+    max_drawdown = FloatPrompt.ask(
+        "[cyan]Max Drawdown Per Day (%)[/cyan]",
+        default=5.0
     )
     
     # AI Provider
-    print("\n🤖 AI PROVIDER")
-    print("-" * 60)
+    console.print("\n[bold yellow]🤖 AI PROVIDER[/bold yellow]")
+    console.print("[dim]" + "-" * 60 + "[/dim]")
     
-    provider = get_input(
-        "Provider (9Router)",
-        "ninerouter",
-        validate_provider
+    provider = Prompt.ask(
+        "[cyan]Provider[/cyan]",
+        default="ninerouter",
+        choices=["ninerouter"]
     ).lower()
     
-    # 9Router single provider (supports Ollama via 9Router)
-    model = get_input(
-        "Model (auto untuk auto-routing)",
-        "auto",
-        lambda x: (True, None)
+    model = Prompt.ask(
+        "[cyan]Model[/cyan]",
+        default="auto"
     )
     
     # Trading Mode
-    print("\n🎮 TRADING MODE")
-    print("-" * 60)
+    console.print("\n[bold yellow]🎮 TRADING MODE[/bold yellow]")
+    console.print("[dim]" + "-" * 60 + "[/dim]")
     
-    mode = get_input(
-        "Mode (assisted/auto)",
-        "assisted",
-        validate_mode
+    mode = Prompt.ask(
+        "[cyan]Mode[/cyan]",
+        default="assisted",
+        choices=["assisted", "auto"]
     ).lower()
     
-    # Summary
-    print("\n" + "="*60)
-    print("📋 CONFIGURATION SUMMARY")
-    print("="*60)
-    print(f"Symbol:              {symbol}")
-    print(f"Capital:             {capital} USC")
-    print(f"Lot Size:            {lot}")
-    print(f"Max Trades/Day:      {max_trades}")
-    print(f"Confidence:          {confidence}%")
-    print(f"Max Drawdown:        {max_drawdown}%")
-    print(f"AI Provider:         {provider}")
-    print(f"Model:               {model}")
-    print(f"Mode:                {mode}")
-    print("="*60 + "\n")
+    # Summary Table
+    table = Table(title="[bold]📋 CONFIGURATION SUMMARY[/bold]", show_header=False, box=None)
+    table.add_column("Parameter", style="cyan")
+    table.add_column("Value", style="green")
     
-    confirm = input("Simpan konfigurasi ini? (y/n): ").strip().lower()
-    if confirm != 'y':
-        print("\n❌ Setup dibatalkan.")
+    table.add_row("Symbol", symbol)
+    table.add_row("Capital", f"{capital} USC")
+    table.add_row("Lot Size", str(lot))
+    table.add_row("Max Trades/Day", str(max_trades))
+    table.add_row("Confidence", f"{confidence}%")
+    table.add_row("Max Drawdown", f"{max_drawdown}%")
+    table.add_row("AI Provider", provider)
+    table.add_row("Model", model)
+    table.add_row("Mode", mode)
+    
+    console.print("\n")
+    console.print(Panel(Align.center(table), border_style="green"))
+    console.print("\n")
+    
+    if not Confirm.ask("[bold]Simpan konfigurasi ini?[/bold]", default=True):
+        console.print("\n[bold red]❌ Setup dibatalkan.[/bold red]")
         return
     
     # Build config
@@ -205,25 +151,23 @@ def main():
     if provider == 'ninerouter':
         config['ninerouter_url'] = 'http://localhost:20128/v1'
         config['ninerouter_api_key'] = None
-    else:
-        pass  # fallback ke default 9Router
     
     # Save config
     with open('config.yaml', 'w') as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
     
-    print("\n✅ Konfigurasi berhasil disimpan ke config.yaml")
-    print("\n🚀 Next steps:")
-    print("   1. Pastikan MT5 sudah running")
-    print("   2. Jalankan: 9router")
-    print("   3. Jalankan: python trade.py start")
-    print("\nHappy Trading! 🎯\n")
+    console.print("\n[bold green]✅ Konfigurasi berhasil disimpan ke config.yaml[/bold green]")
+    console.print("\n[bold cyan]🚀 Next steps:[/bold cyan]")
+    console.print("   1. Pastikan MT5 sudah running")
+    console.print("   2. Jalankan: [green]9router[/green]")
+    console.print("   3. Jalankan: [green]python trade.py start[/green]")
+    console.print("\n[bold magenta]Happy Trading! 🎯[/bold magenta]\n")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n❌ Setup dibatalkan oleh user.")
+        console.print("\n\n[bold red]❌ Setup dibatalkan oleh user.[/bold red]")
     except Exception as e:
-        print(f"\n\n❌ Error: {e}")
+        console.print(f"\n\n[bold red]❌ Error: {e}[/bold red]")

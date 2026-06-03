@@ -19,6 +19,8 @@ python trade.py [command]
 python trade.py setup
 ```
 
+*(Terminal UI akan menggunakan `rich` dengan validasi input otomatis dan tabel ringkasan).*
+
 **Prompt yang ditanyakan:**
 1. Symbol (XAUUSD, EURUSD, GBPUSD, dll)
 2. Lot size (0.01, 0.02, dll)
@@ -42,17 +44,19 @@ python trade.py config
 ```
 
 **Output:**
+*(Ditampilkan dalam format Tabel berwarna menggunakan library `rich`)*
 ```
-=== CURRENT CONFIGURATION ===
-
-Symbol:              XAUUSD
-Lot Size:            0.01
-Max Trades/Day:      3
-Confidence:          80%
-Max Drawdown:        5%
-AI Provider:         ninerouter
-Model:               auto
-Mode:                assisted
+┌──────────────────────────────────────┐
+│ CURRENT CONFIGURATION                │
+├───────────────┬──────────────────────┤
+│ Parameter     │ Value                │
+├───────────────┼──────────────────────┤
+│ Symbol        │ XAUUSD               │
+│ Lot Size      │ 0.01                 │
+│ Max Trades/Day│ 3                    │
+│ Confidence    │ 80%                  │
+│ AI Provider   │ ninerouter           │
+└───────────────┴──────────────────────┘
 
 ⚠️  CONFIG WARNINGS:
    ❌ provider 'ollama' is deprecated. Please update to 'ninerouter'.

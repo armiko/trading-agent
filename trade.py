@@ -11,37 +11,40 @@ Usage:
 import sys
 import asyncio
 import yaml
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.align import Align
 
+console = Console()
 
 def print_usage():
-    print("Usage: python trade.py [setup|config|status|models|start|run]")
-    print("")
-    print("Commands:")
-    print("  setup        Interactive setup wizard")
-    print("  config       Tampilkan/edit konfigurasi saat ini")
-    print("  status       Cek koneksi MT5 & balance")
-    print("  models       List AI provider (9Router)")
-    print("  start        Start TUI (assisted mode)")
-    print("  run          Run headless (auto mode)")
+    console.print("\n[bold cyan]Usage:[/bold cyan] python trade.py [command]")
+    console.print("\n[bold]Commands:[/bold]")
+    console.print("  [green]setup[/green]        Interactive setup wizard")
+    console.print("  [green]config[/green]       Tampilkan/edit konfigurasi saat ini")
+    console.print("  [green]status[/green]       Cek koneksi MT5 & balance")
+    console.print("  [green]models[/green]       List AI provider (9Router)")
+    console.print("  [green]start[/green]        Start TUI (assisted mode)")
+    console.print("  [green]run[/green]          Run headless (auto mode)\n")
 
 
 def validate_config(config: dict) -> list:
-    """FIX #14: Validasi konfigurasi, return list of warnings"""
+    """Validasi konfigurasi, return list of warnings"""
     warnings = []
     
     # Required fields
     required = ["symbol", "lot", "mode"]
     for field in required:
         if field not in config:
-            warnings.append(f"Missing required field: {field}")
+            warnings.append(f"Missing required field: [bold]{field}[/bold]")
     
     # Symbol validation
     valid_symbols = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "BTCUSD"]
     if config.get("symbol") not in valid_symbols:
-        warnings.append(f"Invalid symbol: {config.get('symbol')}. Valid: {valid_symbols}")
+        warnings.append(f"Invalid symbol: [bold]{config.get('symbol')}[/bold]. Valid: {', '.join(valid_symbols)}")
     
     # Numeric validations
-    # lot: only validate if present (to avoid duplicate warning with required check)
     if "lot" in config:
         lot_val = config["lot"]
         try:
@@ -51,7 +54,6 @@ def validate_config(config: dict) -> list:
         except (ValueError, TypeError):
             warnings.append("Lot must be a number")
     
-    # max_trades_per_day: always validate (use default if missing)
     max_trades_val = config.get("max_trades_per_day", 1)
     try:
         max_trades_val = int(max_trades_val)
@@ -60,7 +62,6 @@ def validate_config(config: dict) -> list:
     except (ValueError, TypeError):
         warnings.append("max_trades_per_day must be an integer")
     
-    # confidence_threshold: always validate
     conf_val = config.get("confidence_threshold", 80)
     try:
         conf_val = float(conf_val)
@@ -69,7 +70,6 @@ def validate_config(config: dict) -> list:
     except (ValueError, TypeError):
         warnings.append("confidence_threshold must be a number")
     
-    # max_drawdown_percent: always validate
     dd_val = config.get("max_drawdown_percent", 5)
     try:
         dd_val = float(dd_val)
@@ -78,16 +78,15 @@ def validate_config(config: dict) -> list:
     except (ValueError, TypeError):
         warnings.append("max_drawdown_percent must be a number")
     
-    # FIX 6: Provider field is deprecated — AI routing uses ninerouter_url directly
     provider = config.get("provider")
     if provider:
-        warnings.append("ℹ️  'provider' field is deprecated and unused. AI routing uses 'ninerouter_url' config directly. You can safely remove this field.")
+        warnings.append("ℹ️  'provider' field is deprecated and unused. AI routing uses 'ninerouter_url' config directly.")
     
     return warnings
 
 
 def show_config():
-    """FIX #14: Tampilkan konfigurasi saat ini dengan validasi"""
+    """Tampilkan konfigurasi saat ini dengan validasi"""
     try:
         with open("config.yaml", "r") as f:
             config = yaml.safe_load(f)
@@ -95,28 +94,37 @@ def show_config():
         # Validate
         warnings = validate_config(config)
         if warnings:
-            print("\n⚠️  CONFIG WARNINGS:")
+            console.print("\n[bold yellow]⚠️  CONFIG WARNINGS:[/bold yellow]")
             for w in warnings:
-                print(f"   ❌ {w}")
-            print()
+                console.print(f"   ❌ {w}")
+            console.print()
         
-        print("\n=== CURRENT CONFIGURATION ===\n")
-        print(f"Symbol:              {config.get('symbol', 'N/A')}")
-        print(f"Lot Size:            {config.get('lot', 'N/A')}")
-        print(f"Capital/Equity:      - (dari MT5)")
-        print(f"Max Trades/Day:      {config.get('max_trades_per_day', 'N/A')}")
-        print(f"Confidence:          {config.get('confidence_threshold', 'N/A')}%")
-        print(f"Max Drawdown:        {config.get('max_drawdown_percent', 'N/A')}%")
-        print(f"AI Provider:         {config.get('provider', 'N/A')}")
-        print(f"Model:               {config.get('model', 'N/A')}")
-        print(f"Mode:                {config.get('mode', 'N/A')}")
-        print(f"Learning Loss/ Win:  {config.get('learning_loss_count', 3)} loss + {config.get('learning_win_count', 2)} win")
-        print()
-        print("To edit, run: python trade.py setup")
-        print()
+        table = Table(title="[bold cyan]CURRENT CONFIGURATION[/bold cyan]", show_header=True, header_style="bold magenta")
+        table.add_column("Parameter", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Symbol", str(config.get('symbol', 'N/A')))
+        table.add_row("Lot Size", str(config.get('lot', 'N/A')))
+        table.add_row("Capital/Equity", "- (dari MT5)")
+        table.add_row("Max Trades/Day", str(config.get('max_trades_per_day', 'N/A')))
+        table.add_row("Confidence", f"{config.get('confidence_threshold', 'N/A')}%")
+        table.add_row("Max Drawdown", f"{config.get('max_drawdown_percent', 'N/A')}%")
+        table.add_row("AI Provider", str(config.get('provider', 'N/A')))
+        table.add_row("Model", str(config.get('model', 'N/A')))
+        table.add_row("Mode", str(config.get('mode', 'N/A')))
+        
+        learning_str = f"{config.get('learning_loss_count', 3)} loss + {config.get('learning_win_count', 2)} win"
+        table.add_row("Learning Loss/Win", learning_str)
+        
+        console.print("\n")
+        console.print(Panel(Align.center(table), border_style="cyan"))
+        console.print("\n[dim]To edit, run: python trade.py setup[/dim]\n")
+        
+    except FileNotFoundError:
+        console.print("\n[bold red]❌ File config.yaml tidak ditemukan.[/bold red]")
+        console.print("Jalankan [green]python trade.py setup[/green] terlebih dahulu.\n")
     except Exception as e:
-        print(f"\n❌ Error membaca/validasi config: {e}")
-        print()
+        console.print(f"\n[bold red]❌ Error membaca/validasi config: {e}[/bold red]\n")
 
 
 def main():
@@ -142,40 +150,45 @@ def main():
         asyncio.run(run_models())
 
     elif command == "start":
-        # FIX #14: Validate config before starting
         try:
             with open("config.yaml", "r") as f:
                 config = yaml.safe_load(f)
             warnings = validate_config(config)
             if warnings:
-                print("\n⚠️  CONFIG VALIDATION WARNINGS:")
+                console.print("\n[bold yellow]⚠️  CONFIG VALIDATION WARNINGS:[/bold yellow]")
                 for w in warnings:
-                    print(f"   ❌ {w}")
-                confirm = input("\nContinue anyway? (y/n): ").strip().lower()
-                if confirm != 'y':
-                    print("Aborted. Fix config with: python trade.py setup")
+                    console.print(f"   ❌ {w}")
+                
+                from rich.prompt import Confirm
+                if not Confirm.ask("\n[bold]Continue anyway?[/bold]", default=False):
+                    console.print("[red]Aborted.[/red] Fix config with: [green]python trade.py setup[/green]")
                     sys.exit(1)
+        except FileNotFoundError:
+            console.print("\n[bold red]❌ File config.yaml tidak ditemukan.[/bold red]")
+            sys.exit(1)
         except Exception as e:
-            print(f"\n❌ Config validation failed: {e}")
+            console.print(f"\n[bold red]❌ Config validation failed: {e}[/bold red]")
             sys.exit(1)
         
         from cli.start import run_tui
         asyncio.run(run_tui())
 
     elif command == "run":
-        # FIX #14: Validate config before running
         try:
             with open("config.yaml", "r") as f:
                 config = yaml.safe_load(f)
             warnings = validate_config(config)
             if warnings:
-                print("\n❌ CONFIG VALIDATION FAILED:")
+                console.print("\n[bold red]❌ CONFIG VALIDATION FAILED:[/bold red]")
                 for w in warnings:
-                    print(f"   ❌ {w}")
-                print("\nFix config with: python trade.py setup")
+                    console.print(f"   ❌ {w}")
+                console.print("\nFix config with: [green]python trade.py setup[/green]")
                 sys.exit(1)
+        except FileNotFoundError:
+            console.print("\n[bold red]❌ File config.yaml tidak ditemukan.[/bold red]")
+            sys.exit(1)
         except Exception as e:
-            print(f"\n❌ Config validation failed: {e}")
+            console.print(f"\n[bold red]❌ Config validation failed: {e}[/bold red]")
             sys.exit(1)
         
         from core.agent import TradingAgent
@@ -183,7 +196,7 @@ def main():
         asyncio.run(agent.run())
 
     else:
-        print(f"Unknown command: {command}")
+        console.print(f"[bold red]Unknown command: {command}[/bold red]")
         print_usage()
         sys.exit(1)
 

@@ -325,6 +325,10 @@ Dokumentasi lengkap tersedia di folder `docs/`:
 
 ## 📝 Changelog
 
+### v2.3.0 — MT5 Integration & CLI UI Enhancement
+- **Added** `MT5Provider` to directly connect and fetch OHLCV data from MetaTrader 5 locally.
+- **Enhanced** `setup_wizard.py` and `trade.py` UI using the `rich` library for beautiful terminal tables, panels, and automatic type validations.
+
 ### v2.2.1 — Interactive Mode Feature Parity
 - **Fixed** Assisted Mode (TUI): AI Ensemble voting is now correctly triggered in interactive mode.
 - **Fixed** Assisted Mode (TUI): Support/Resistance Sanity Checks are now applied before prompting the user for approval.
