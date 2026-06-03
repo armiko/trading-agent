@@ -178,16 +178,19 @@ class RiskManager:
                 }
 
         trend_m15 = context.get("trend_m15", "NEUTRAL")
-        if action == "BUY" and trend_m15 == "BEARISH":
-            return {
-                "allowed": False,
-                "reason": f"BUY signal but M15 trend is {trend_m15} (directional conflict)",
-            }
-        if action == "SELL" and trend_m15 == "BULLISH":
-            return {
-                "allowed": False,
-                "reason": f"SELL signal but M15 trend is {trend_m15} (directional conflict)",
-            }
+        trend_h1 = context.get("trend_h1", "NEUTRAL")
+        
+        if action == "BUY":
+            if trend_h1 == "BEARISH":
+                return {"allowed": False, "reason": "BUY signal but major H1 trend is BEARISH (directional conflict)"}
+            if trend_m15 == "BEARISH":
+                return {"allowed": False, "reason": "BUY signal but M15 trend is BEARISH (directional conflict)"}
+                
+        if action == "SELL":
+            if trend_h1 == "BULLISH":
+                return {"allowed": False, "reason": "SELL signal but major H1 trend is BULLISH (directional conflict)"}
+            if trend_m15 == "BULLISH":
+                return {"allowed": False, "reason": "SELL signal but M15 trend is BULLISH (directional conflict)"}
 
         rsi = context.get("rsi", 50)
         if action == "BUY" and rsi > 68:

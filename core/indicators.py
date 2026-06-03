@@ -328,14 +328,20 @@ def analyze_market_structure(df: pd.DataFrame) -> MarketStructure:
     else:
         volatility = "NORMAL"
 
-    # Volume trend
-    volume_ratio = latest.get("Volume_ratio", 1.0)
-    recent_volume_ratios = df["Volume_ratio"].tail(10).mean() if "Volume_ratio" in df.columns else 1.0
-
-    if recent_volume_ratios > 1.2:
-        volume_trend = "INCREASING"
-    elif recent_volume_ratios < 0.8:
-        volume_trend = "DECREASING"
+    # Volume trend (using BB width as proxy for expansion/contraction instead of tick_volume)
+    if "BB_width" in df.columns:
+        bb_series = df["BB_width"].tail(10).dropna()
+        if len(bb_series) > 5:
+            bb_now = bb_series.iloc[-1]
+            bb_mean = bb_series.mean()
+            if bb_now > bb_mean * 1.1:
+                volume_trend = "EXPANDING"
+            elif bb_now < bb_mean * 0.9:
+                volume_trend = "CONTRACTING"
+            else:
+                volume_trend = "STABLE"
+        else:
+            volume_trend = "STABLE"
     else:
         volume_trend = "STABLE"
 
@@ -401,6 +407,75 @@ def get_latest_values(df: pd.DataFrame) -> Tuple[float, float, float]:
     return (rsi, atr, ema_diff)
 
 
+def get_momentum_direction(df: pd.DataFrame) -> Dict[str, str]:
+    """Calculate momentum direction based on current vs previous candle"""
+    if df is None or len(df) < 4:
+        return {
+            "rsi_direction": "UNKNOWN",
+            "atr_direction": "UNKNOWN",
+            "macd_direction": "UNKNOWN",
+            "recent_candles": "UNKNOWN"
+        }
+
+    latest = df.iloc[-1]
+    prev = df.iloc[-2]
+
+    # RSI Direction
+    rsi_now = latest.get("RSI_14", 50)
+    rsi_prev = prev.get("RSI_14", 50)
+    if pd.isna(rsi_now) or pd.isna(rsi_prev):
+        rsi_direction = "UNKNOWN"
+    elif rsi_now > rsi_prev + 2:
+        rsi_direction = f"RISING (prev: {rsi_prev:.1f} -> now: {rsi_now:.1f})"
+    elif rsi_now < rsi_prev - 2:
+        rsi_direction = f"FALLING (prev: {rsi_prev:.1f} -> now: {rsi_now:.1f})"
+    else:
+        rsi_direction = f"FLAT (now: {rsi_now:.1f})"
+
+    # ATR Direction
+    atr_now = latest.get("ATR_14", 0)
+    atr_prev = prev.get("ATR_14", 0)
+    if pd.isna(atr_now) or pd.isna(atr_prev):
+        atr_direction = "UNKNOWN"
+    elif atr_now > atr_prev * 1.05:
+        atr_direction = f"EXPANDING (prev: {atr_prev:.2f} -> now: {atr_now:.2f})"
+    elif atr_now < atr_prev * 0.95:
+        atr_direction = f"CONTRACTING (prev: {atr_prev:.2f} -> now: {atr_now:.2f})"
+    else:
+        atr_direction = f"STABLE (now: {atr_now:.2f})"
+
+    # MACD Direction
+    macd_now = latest.get("MACD_hist", 0)
+    macd_prev = prev.get("MACD_hist", 0)
+    if pd.isna(macd_now) or pd.isna(macd_prev):
+        macd_direction = "UNKNOWN"
+    elif macd_now > 0 and macd_now > macd_prev:
+        macd_direction = "EXPANDING POSITIVE"
+    elif macd_now > 0 and macd_now < macd_prev:
+        macd_direction = "CONTRACTING POSITIVE"
+    elif macd_now < 0 and macd_now < macd_prev:
+        macd_direction = "EXPANDING NEGATIVE"
+    elif macd_now < 0 and macd_now > macd_prev:
+        macd_direction = "CONTRACTING NEGATIVE"
+    else:
+        macd_direction = "NEUTRAL"
+
+    # Last 3 candles direction
+    candles = []
+    for i in range(-3, 0):
+        c_open = df.iloc[i]["open"]
+        c_close = df.iloc[i]["close"]
+        candles.append("BULLISH" if c_close > c_open else "BEARISH")
+    recent_candles = ", ".join(candles)
+
+    return {
+        "rsi_direction": rsi_direction,
+        "atr_direction": atr_direction,
+        "macd_direction": macd_direction,
+        "recent_candles": recent_candles
+    }
+
+
 def get_enhanced_context(df: pd.DataFrame) -> Dict[str, Any]:
     """
     Get comprehensive market context with all indicators.
@@ -425,6 +500,9 @@ def get_enhanced_context(df: pd.DataFrame) -> Dict[str, Any]:
     stoch_k = latest.get("STOCH_K", 50)
     adx = latest.get("ADX", 0)
     bb_width = latest.get("BB_width", 0)
+    
+    # Momentum Direction
+    momentum_dir = get_momentum_direction(df)
 
     return {
         "rsi": round(rsi, 1),
@@ -452,4 +530,5 @@ def get_enhanced_context(df: pd.DataFrame) -> Dict[str, Any]:
             "volatility": ms.volatility,
             "volume_trend": ms.volume_trend,
         },
+        "momentum_direction": momentum_dir,
     }

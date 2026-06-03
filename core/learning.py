@@ -158,6 +158,55 @@ class LearningMemory:
         # Gabungkan: loss dulu, lalu win
         return loss_lessons + win_lessons
 
+    def get_contextual_memory(self, current_context: Dict[str, Any], limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Ambil memory yang konteksnya mirip dengan kondisi saat ini.
+        """
+        import ast
+        
+        conn = self._get_conn()
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        
+        # Ambil history terbaru untuk difilter
+        c.execute("""
+            SELECT * FROM learning_memory
+            ORDER BY date DESC
+            LIMIT 50
+        """)
+        rows = c.fetchall()
+        conn.close()
+        
+        current_session = current_context.get("session", "UNKNOWN")
+        current_regime = current_context.get("regime", "UNKNOWN")
+        current_rsi = current_context.get("rsi", 50)
+        
+        scored_lessons = []
+        for row in rows:
+            lesson_dict = dict(row)
+            try:
+                mc_str = lesson_dict.get("market_context", "{}")
+                mc = ast.literal_eval(mc_str)
+            except:
+                mc = {}
+                
+            score = 0
+            if mc.get("session") == current_session:
+                score += 2
+            if mc.get("regime") == current_regime:
+                score += 2
+                
+            mem_rsi = mc.get("rsi", 50)
+            if abs(mem_rsi - current_rsi) <= 15:
+                score += 1
+                
+            # Hanya ambil yang cukup mirip
+            if score >= 3:
+                scored_lessons.append((score, lesson_dict))
+                
+        scored_lessons.sort(key=lambda x: x[0], reverse=True)
+        return [item[1] for item in scored_lessons[:limit]]
+
     def get_daily_stats(self) -> Dict[str, Any]:
         """Statistik trade hari ini"""
         today = date.today().isoformat()

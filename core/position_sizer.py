@@ -38,6 +38,7 @@ class PositionSizer:
         equity: float,
         atr: float = 0,
         pip_value_per_lot: float = 0,
+        point: float = 0.01,
     ) -> float:
         """
         Kelly Criterion: f* = (p*b - q) / b
@@ -69,7 +70,12 @@ class PositionSizer:
             # Without ATR info, fallback to base_lot
             return self.base_lot
 
-        sl_pips = atr * self.sl_multiplier
+        sl_distance = atr * self.sl_multiplier
+        if sl_distance <= 0:
+            return self.base_lot
+            
+        pip_size = point * 10
+        sl_pips = sl_distance / pip_size
         lot = risk_amount / (sl_pips * pvpl)
 
         return max(self.min_lot, min(self.max_lot, round(lot, 2)))
@@ -79,7 +85,8 @@ class PositionSizer:
         equity: float,
         atr: float,
         pip_value_per_lot: float = 0,
-        instrument: str = "USD"
+        instrument: str = "USD",
+        point: float = 0.01,
     ) -> float:
         """
         ATR-based sizing: lot inversely proportional to volatility.
@@ -98,7 +105,13 @@ class PositionSizer:
             return self.base_lot
 
         risk_amount = equity * (self.risk_per_trade_pct / 100)
-        sl_pips = atr * self.sl_multiplier
+        sl_distance = atr * self.sl_multiplier
+        
+        if sl_distance <= 0:
+            return self.base_lot
+            
+        pip_size = point * 10
+        sl_pips = sl_distance / pip_size
 
         # FIX: lot = risk_amount / (sl_pips * pip_value_per_lot)
         lot = risk_amount / (sl_pips * pvpl)
@@ -113,17 +126,18 @@ class PositionSizer:
         avg_win: float = 50,
         avg_loss: float = 30,
         pip_value_per_lot: float = 0,
-        instrument: str = "USD"
+        instrument: str = "USD",
+        point: float = 0.01,
     ) -> float:
         """
         Combine Kelly + Volatility methods, take conservative.
         """
         kelly_lot = self.calculate_kelly_lot(
             win_rate, avg_win, avg_loss, equity,
-            atr=atr, pip_value_per_lot=pip_value_per_lot
+            atr=atr, pip_value_per_lot=pip_value_per_lot, point=point
         )
         vol_lot = self.calculate_volatility_lot(
-            equity, atr, pip_value_per_lot, instrument
+            equity, atr, pip_value_per_lot, instrument, point=point
         )
 
         # Use the smaller (more conservative) lot
@@ -137,21 +151,22 @@ class PositionSizer:
         avg_win: float = 50,
         avg_loss: float = 30,
         pip_value_per_lot: float = 0,
-        instrument: str = "USD"
+        instrument: str = "USD",
+        point: float = 0.01,
     ) -> Dict[str, Any]:
         """
         Return detailed sizing information for logging/debugging.
         """
         kelly_lot = self.calculate_kelly_lot(
             win_rate, avg_win, avg_loss, equity,
-            atr=atr, pip_value_per_lot=pip_value_per_lot
+            atr=atr, pip_value_per_lot=pip_value_per_lot, point=point
         )
         vol_lot = self.calculate_volatility_lot(
-            equity, atr, pip_value_per_lot, instrument
+            equity, atr, pip_value_per_lot, instrument, point=point
         )
         optimal = self.calculate_optimal_lot(
             equity, atr, win_rate, avg_win,
-            avg_loss, pip_value_per_lot, instrument
+            avg_loss, pip_value_per_lot, instrument, point=point
         )
 
         return {

@@ -114,7 +114,7 @@ class EconomicCalendar:
             
             # Check cache age
             last_fetch = datetime.fromisoformat(data["last_fetch"])
-            if datetime.now() - last_fetch > self.cache_duration:
+            if datetime.utcnow() - last_fetch > self.cache_duration:
                 print("[NEWS] Cache expired")
                 return False
             
@@ -174,7 +174,7 @@ class EconomicCalendar:
                             continue
                         
                         # Only include future events
-                        if event_time > datetime.now():
+                        if event_time > datetime.utcnow():
                             events.append(NewsEvent(
                                 title=title,
                                 currency=currency,
@@ -215,7 +215,7 @@ class EconomicCalendar:
         all_events.sort(key=lambda e: e.event_time)
         
         self.events = all_events
-        self.last_fetch = datetime.now()
+        self.last_fetch = datetime.utcnow()
         self._save_to_cache()
         
         print(f"[NEWS] Fetched {len(all_events)} events")
@@ -223,7 +223,7 @@ class EconomicCalendar:
 
     def get_upcoming_events(self, hours_ahead: int = 24) -> List[NewsEvent]:
         """Get events in the next N hours"""
-        now = datetime.now()
+        now = datetime.utcnow()
         cutoff = now + timedelta(hours=hours_ahead)
         
         return [
@@ -237,7 +237,7 @@ class EconomicCalendar:
         Returns: {"safe": bool, "reason": str, "next_event": NewsEvent or None}
         """
         if check_time is None:
-            check_time = datetime.now()
+            check_time = datetime.utcnow()
         
         buffer = timedelta(minutes=self.buffer_minutes)
         

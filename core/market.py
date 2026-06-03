@@ -23,8 +23,10 @@ class MarketData:
         self.atr_multiplier_limit = atr_multiplier_limit
         self._cache_m5: Optional[pd.DataFrame] = None
         self._cache_m15: Optional[pd.DataFrame] = None
+        self._cache_h1: Optional[pd.DataFrame] = None
         self._last_m5_update: Optional[datetime] = None
         self._last_m15_update: Optional[datetime] = None
+        self._last_h1_update: Optional[datetime] = None
         self._spread_cache: Optional[int] = None
         self._last_spread_update: Optional[datetime] = None
 
@@ -32,6 +34,7 @@ class MarketData:
         self.current_atr: float = 0.0
         self.current_rsi: float = 50.0
         self.current_spread: int = 0
+        self.trend_h1: str = "NEUTRAL"
         self.trend_m15: str = "NEUTRAL"
         self.trend_m5: str = "NEUTRAL"
         self.session: str = ""
@@ -49,23 +52,33 @@ class MarketData:
         return True
 
     def _get_session(self) -> str:
-        now = datetime.now()
+        # Gunakan UTC agar independen dari local timezone server/komputer
+        now = datetime.utcnow()
         hour = now.hour
-        if 0 <= hour < 9:
+        
+        # Sesi berdasarkan UTC:
+        # Asia: 23:00 - 08:00 UTC
+        # London: 08:00 - 13:00 UTC
+        # NY: 13:00 - 21:00 UTC
+        if 0 <= hour < 8 or hour >= 23:
             return "Asia"
-        elif 9 <= hour < 12:
-            return "Transition"
-        elif 12 <= hour < 17:
+        elif 8 <= hour < 13:
             return "London"
-        elif 17 <= hour < 21:
+        elif 13 <= hour < 21:
             return "New York"
         else:
-            return "Asia"
+            return "Transition"
 
     def _check_market_hours(self) -> bool:
-        now = datetime.now()
-        # Forex 24/5: skip Sabtu & Minggu
-        return now.weekday() < 5
+        # Gunakan UTC. Forex tutup Jumat 22:00 UTC, buka Minggu 22:00 UTC
+        now = datetime.utcnow()
+        if now.weekday() == 5:  # Sabtu full tutup
+            return False
+        if now.weekday() == 4 and now.hour >= 22:  # Jumat setelah 22:00 UTC tutup
+            return False
+        if now.weekday() == 6 and now.hour < 22:  # Minggu sebelum 22:00 UTC tutup
+            return False
+        return True
 
     async def fetch_spread(self) -> int:
         """Cek spread real-time dari MT5"""
@@ -122,8 +135,25 @@ class MarketData:
         self._cache_m15 = await self.fetch_rates(mt5.TIMEFRAME_M15, 100)
         if self._cache_m15 is not None:
             self._cache_m15 = compute_indicators(self._cache_m15)
+            self.trend_m15 = get_trend_label(self._cache_m15)
         self._last_m15_update = now
         return self._cache_m15
+
+    async def update_h1(self) -> Optional[pd.DataFrame]:
+        """Update H1 (hanya sekali tiap 30 menit)"""
+        now = datetime.now()
+        if (
+            self._last_h1_update
+            and (now - self._last_h1_update).total_seconds() < 1800
+        ):
+            return self._cache_h1
+
+        self._cache_h1 = await self.fetch_rates(mt5.TIMEFRAME_H1, 100)
+        if self._cache_h1 is not None:
+            self._cache_h1 = compute_indicators(self._cache_h1)
+            self.trend_h1 = get_trend_label(self._cache_h1)
+        self._last_h1_update = now
+        return self._cache_h1
 
     async def get_context(self) -> Dict[str, Any]:
         """Kembalikan dictionary market context untuk prompt AI"""
@@ -139,23 +169,29 @@ class MarketData:
 
         await self.update_m5()
         await self.update_m15()
+        await self.update_h1()
         await self.fetch_spread()
 
         # Get enhanced context
         if self._cache_m5 is not None:
+            self.trend_m5 = get_trend_label(self._cache_m5)
             self.enhanced_context = get_enhanced_context(self._cache_m5)
             self.support_resistance = self.enhanced_context.get("support_resistance", {})
             self.price_action = self.enhanced_context.get("price_action", {})
             self.market_structure = self.enhanced_context.get("market_structure", {})
 
         # Get latest values
+        current_price = 0.0
         if self._cache_m5 is not None:
             rsi, atr, ema_diff = get_latest_values(self._cache_m5)
             self.current_rsi = rsi
             self.current_atr = atr
+            current_price = self._cache_m5["close"].iloc[-1]
 
         # Build comprehensive context
         context = {
+            "current_price": round(current_price, 3),
+            "trend_h1": self.trend_h1,
             "trend_m15": self.trend_m15,
             "trend_m5": self.trend_m5,
             "rsi": round(self.current_rsi, 1),

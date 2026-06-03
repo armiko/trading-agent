@@ -61,7 +61,9 @@ class AIDecisionEngine:
 
     async def build_prompt(self, context: Dict[str, Any]) -> str:
         """Build enriched prompt with comprehensive market analysis."""
-        lessons = self.learning.get_weighted_memory(limit_loss=3, limit_win=2)
+        lessons = self.learning.get_contextual_memory(context, limit=3)
+        if not lessons:
+            lessons = self.learning.get_weighted_memory(limit_loss=3, limit_win=2)
 
         memory_section = ""
         if lessons:
@@ -82,6 +84,7 @@ class AIDecisionEngine:
         price_action = context.get("price_action", {})
         regime = context.get("regime", "UNKNOWN")
 
+        trend_h1 = context.get("trend_h1", "NEUTRAL")
         trend_m15 = context.get("trend_m15", "NEUTRAL")
         trend_m5 = context.get("trend_m5", "NEUTRAL")
         rsi = context.get("rsi", 50)
@@ -89,11 +92,34 @@ class AIDecisionEngine:
         ema_diff = context.get("ema_diff", 0)
         spread = context.get("spread", 0)
         session = context.get("session", "Unknown")
+        current_price = context.get("current_price", 0.0)
+        momentum = context.get("momentum_direction", {})
+
+        # Risk/Reward calculations
+        rr_context = ""
+        if atr > 0 and current_price > 0:
+            projected_sl_dist = atr * 1.5
+            projected_tp_dist = atr * 2.5
+            
+            nearest_res = support_res.get('nearest_resistance', 0)
+            nearest_sup = support_res.get('nearest_support', 0)
+            
+            tp_hits_res = (current_price + projected_tp_dist) > nearest_res if nearest_res > current_price else False
+            tp_hits_sup = (current_price - projected_tp_dist) < nearest_sup if nearest_sup < current_price and nearest_sup > 0 else False
+            
+            rr_context = f"""
+[RISK/REWARD CONTEXT]
+- Projected SL distance: {projected_sl_dist:.1f} points
+- Projected TP distance: {projected_tp_dist:.1f} points
+- BUY TP blocked by resistance: {'YES' if tp_hits_res else 'NO'}
+- SELL TP blocked by support: {'YES' if tp_hits_sup else 'NO'}"""
 
         prompt = f"""[SYSTEM INSTRUCTION]
 {SYSTEM_INSTRUCTION}
 
 [MARKET CONTEXT]
+- Current Price: {current_price}
+- Timeframe H1 Trend: {trend_h1}
 - Timeframe M15 Trend: {trend_m15}
 - Timeframe M5 Trend: {trend_m5}
 - RSI (14): {rsi}
@@ -101,6 +127,12 @@ class AIDecisionEngine:
 - EMA20-EMA50 spread: {ema_diff}
 - Spread: {spread} points
 - Session: {session}
+
+[MOMENTUM DIRECTION]
+- RSI: {momentum.get('rsi_direction', 'UNKNOWN')}
+- ATR: {momentum.get('atr_direction', 'UNKNOWN')}
+- MACD Histogram: {momentum.get('macd_direction', 'UNKNOWN')}
+- Last 3 Candles: {momentum.get('recent_candles', 'UNKNOWN')}
 
 [MARKET STRUCTURE]
 - Structure: {ms.get('structure', 'NEUTRAL')}
@@ -122,6 +154,7 @@ class AIDecisionEngine:
 
 [MARKET REGIME]
 - Regime: {regime}
+{rr_context}
 
 [LEARNING MEMORY]
 {memory_section if memory_section else 'Belum ada memori trading.'}

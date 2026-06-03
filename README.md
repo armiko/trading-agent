@@ -325,13 +325,19 @@ Dokumentasi lengkap tersedia di folder `docs/`:
 
 ## 📝 Changelog
 
-### v2.1.0 — Bug Fixes & Improvements
-- **Fixed** Position sizing: Kelly & Volatility formulas corrected (was producing dollar amounts instead of lot sizes)
-- **Fixed** Partial close detection: properly tracks continuation tickets after partial close
-- **Fixed** Market closed handling: early return prevents processing with stale data
-- **Fixed** DXY correlation block no longer resets circuit breaker error counters
-- **Fixed** Drawdown breach now activates 60-minute hibernation (was just blocking without backoff)
-- **Changed** `provider` config field deprecated (AI routing uses `ninerouter_url` directly)
+### v2.2.0 — Final Logic & Mathematical Fixes
+- **Fixed** News Filter Timezone: Converted all local `datetime.now()` to `datetime.utcnow()` to prevent missing GMT-based RSS news events in non-UTC timezones.
+- **Fixed** DXY Correlation Math: Changed correlation timeframe alignment from M5 vs H1 (producing `NaN` due to index mismatch) to H1 vs H1 for robust divergence detection.
+- **Fixed** Confluence S/R Sanity Check: Corrected dictionary key mismatch that previously disabled Support/Resistance AI override protections.
+- **Fixed** Position Sizer: Migrated to explicit `point` value calculation to prevent massive over-leveraging.
+- **Fixed** Time-based Auto Exit: Synchronized exit timer duration strictly with MT5 `tick.time` to prevent premature forced closes caused by PC vs Broker timezone differences.
+- **Fixed** Market Session Detection: Migrated Asia/London/NY detection to strict UTC hours so the bot behaves correctly regardless of VPS local time.
+- **Fixed** Partial Close Detection: Properly maps continuation tickets so AI doesn't lose track of remaining open positions.
+- **Changed** AI context prompt enriched with R:R distance, H1 Trend, and BB Width expansion logic.
+
+### v2.1.0 — System Stability Update
+- **Added** Drawdown limit triggers 60-minute hibernation.
+- **Fixed** Market closed early returns.
 
 ---
 

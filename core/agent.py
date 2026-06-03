@@ -28,6 +28,7 @@ from core.position_sizer import PositionSizer
 from core.trailing_stop import TrailingStopManager
 from core.performance_tracker import LivePerformanceTracker
 from core.ai_ensemble import AIEnsemble
+from core.confluence import calculate_confluence
 
 
 class TradingAgent:
@@ -359,6 +360,36 @@ class TradingAgent:
             print(f"[AGENT] Fase 7 complete for ticket {pos['ticket']}: {result} {pos['profit']:.2f} USC")
             print(f"[AGENT] Lesson learned: {lesson}")
 
+    def validate_ai_sanity(self, decision: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+        """Hard overrides for AI hallucinations."""
+        action = decision.get("action", "HOLD")
+        if action == "HOLD":
+            return decision
+            
+        rsi = context.get("rsi", 50)
+        
+        # Hard override: Extreme RSI
+        if action == "BUY" and rsi > 80:
+            return {"action": "HOLD", "confidence": 0, "reason": "Override: RSI extreme overbought"}
+        if action == "SELL" and rsi < 20:
+            return {"action": "HOLD", "confidence": 0, "reason": "Override: RSI extreme oversold"}
+            
+        # Hard override: Trading directly into S/R
+        current_price = context.get("current_price", 0)
+        sr = context.get("support_resistance", {})
+        
+        if current_price > 0:
+            if action == "BUY":
+                dist = sr.get("dist_to_resistance_pct", 1.0)
+                if dist < 0.1:
+                    return {"action": "HOLD", "confidence": 0, "reason": "Override: Too close to resistance"}
+            elif action == "SELL":
+                dist = sr.get("dist_to_support_pct", 1.0)
+                if dist < 0.1:
+                    return {"action": "HOLD", "confidence": 0, "reason": "Override: Too close to support"}
+                    
+        return decision
+
     async def run_cycle(self):
         """
         Satu siklus lengkap trading loop.
@@ -388,11 +419,25 @@ class TradingAgent:
         if context.get("reason") == "Market closed (weekend)":
             print("[AGENT] Market closed (weekend). Skipping cycle.")
             return
+
+        # NEW: Apply Regime Classification
+        if self.regime_enabled and self.regime_classifier and self.market._cache_m5 is not None:
+            regime_info = self.regime_classifier.classify(self.market._cache_m5, self.market.current_atr)
+            context["regime"] = regime_info["regime"].value
+            context["regime_confidence"] = regime_info["confidence"]
+            context["regime_reasoning"] = regime_info["reasoning"]
+
+        # NEW: Session Filter
+        if self.session_filter_enabled:
+            current_session = self.market.session
+            if current_session in self.avoid_sessions:
+                print(f"[AGENT] Avoiding {current_session} session. Skipping.")
+                return
         
         # NEW: Enhance context with DXY correlation data
         if self.dxy_enabled and self.dxy_correlation:
             df_dxy = await self.dxy_correlation.fetch_dxy_data()
-            df_gold = self.market._cache_m5
+            df_gold = self.market._cache_h1  # Gunakan H1 agar sama dengan df_dxy (menghindari error NaN correlation)
             if df_dxy is not None and df_gold is not None:
                 dxy_signal = self.dxy_correlation.get_correlation_signal(df_gold, df_dxy)
                 context["dxy_signal"] = dxy_signal
@@ -405,6 +450,12 @@ class TradingAgent:
         if not spread_ok:
             print("[AGENT] STANDBY: Spread too high")
             return
+
+        # NEW: News Filter
+        if self.news_filter_enabled and self.news_calendar:
+            if self.news_calendar.is_news_around():
+                print("[AGENT] High-impact news nearby. Skipping trade.")
+                return
 
         # FIX 1: Fase 7 - Detect & process closed positions
         closed_positions = await self.detect_closed_positions()
@@ -423,12 +474,21 @@ class TradingAgent:
             print(f"[AGENT] Ensemble Decision: {decision['action']} ({decision.get('ensemble_agreement', 100)}% agreement)")
         else:
             decision = await self.ai.decide(context)
+            
+        # Post-AI Sanity Check
+        decision = self.validate_ai_sanity(decision, context)
         self.last_decision = decision
 
         print(f"[AGENT] AI Decision: {decision['action']} (conf: {decision['confidence']}%) - {decision['reason']}")
 
         if decision["action"] == "HOLD":
-            self.risk.register_success()
+            return
+            
+        # Confluence Scoring
+        confluence_score = calculate_confluence(decision["action"], context)
+        print(f"[AGENT] Confluence Score: {confluence_score}/7")
+        if confluence_score < 3:
+            print(f"[AGENT] Blocked by low confluence ({confluence_score} < 3)")
             return
 
         # Fase 4: Risk validation
@@ -460,6 +520,7 @@ class TradingAgent:
             win_rate=self.performance_tracker.get_metrics().get("win_rate", 50) / 100,
             avg_win=self.performance_tracker.get_metrics().get("total_profit", 50) / max(self.performance_tracker.get_metrics().get("wins", 1), 1),
             avg_loss=self.performance_tracker.get_metrics().get("total_loss", 30) / max(self.performance_tracker.get_metrics().get("losses", 1), 1),
+            point=self.executor._get_point_value()
         )
         print(f"[AGENT] Position sizing: lot={optimal_lot} (from base={self.config.get('lot', 0.01)})")
         

@@ -246,8 +246,10 @@ class ExecutionEngine:
                     print(f"[EXEC] Trailing stop updated for {pos.ticket}: SL {pos.sl:.5f} -> {new_sl:.5f}")
 
             # FIX #8: Time-based exit dengan rules untuk profit dan loss
-            open_time = datetime.fromtimestamp(pos.time)
-            duration = (datetime.now() - open_time).total_seconds() / 60
+            # FIX: Jangan gunakan datetime.now() karena beda timezone dengan broker (pos.time)
+            tick = mt5.symbol_info_tick(self.symbol)
+            current_time = tick.time if tick else int(datetime.now().timestamp())
+            duration = (current_time - pos.time) / 60.0
             
             if duration >= self.time_exit_min:
                 # Rule 1: Jika profit kecil (< 0.5 ATR) setelah 20 menit → close
