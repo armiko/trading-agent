@@ -295,7 +295,7 @@ lot = risk_amount / (ATR × SL_multiplier × pip_value_per_lot)
 ## 📦 Requirements
 
 - Python 3.8+
-- MetaTrader 5 (Windows VM)
+- MetaTrader 5 (Windows PC / VM)
 - Node.js (for 9Router)
 - 9Router (`npm install -g 9router`)
 - Cent account for testing (**jangan gunakan akun real**)
